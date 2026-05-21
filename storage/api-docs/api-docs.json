@@ -7,8 +7,12 @@
     },
     "servers": [
         {
+            "url": "/",
+            "description": "Current host (same as this Swagger page — use for local testing)"
+        },
+        {
             "url": "https://amctag-ehkini.38f0fz.easypanel.host/",
-            "description": "Application server (set L5_SWAGGER_CONST_HOST in .env to your APP_URL)"
+            "description": "Production server (from APP_URL / L5_SWAGGER_CONST_HOST)"
         }
     ],
     "paths": {

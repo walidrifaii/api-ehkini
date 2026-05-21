@@ -13,8 +13,13 @@ namespace App\OpenApi\V2;
  *     ),
  *
  *     @OA\Server(
+ *         url="/",
+ *         description="Current host (same as this Swagger page — use for local testing)"
+ *     ),
+ *
+ *     @OA\Server(
  *         url=L5_SWAGGER_CONST_HOST,
- *         description="Application server (set L5_SWAGGER_CONST_HOST in .env to your APP_URL)"
+ *         description="Production server (from APP_URL / L5_SWAGGER_CONST_HOST)"
  *     ),
  *
  *     @OA\Components(

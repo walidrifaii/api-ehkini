@@ -101,16 +101,22 @@ namespace App\OpenApi\V2\Paths;
  *         required=true,
  *         @OA\JsonContent(
  *             required={"country_code","phone","password"},
- *             @OA\Property(property="country_code", type="string"),
- *             @OA\Property(property="phone", type="string"),
- *             @OA\Property(property="password", type="string"),
- *             @OA\Property(property="fcm_token", type="string"),
- *             @OA\Property(property="platform", type="string", enum={"android","ios","web"}),
- *             @OA\Property(property="location", type="string")
+ *             example={
+ *                 "country_code": "+961",
+ *                 "phone": "70657961",
+ *                 "password": "your_password"
+ *             },
+ *             @OA\Property(property="country_code", type="string", example="+961", description="E.164 prefix, e.g. +961"),
+ *             @OA\Property(property="phone", type="string", example="70657961", description="National number without country prefix"),
+ *             @OA\Property(property="password", type="string", format="password", example="your_password"),
+ *             @OA\Property(property="fcm_token", type="string", nullable=true),
+ *             @OA\Property(property="platform", type="string", enum={"android","ios","web"}, nullable=true),
+ *             @OA\Property(property="location", type="string", nullable=true)
  *         )
  *     ),
  *     @OA\Response(response=200, description="Success", @OA\JsonContent(ref="#/components/schemas/AuthTokenResponse")),
- *     @OA\Response(response=401, description="Invalid credentials")
+ *     @OA\Response(response=401, description="Invalid credentials"),
+ *     @OA\Response(response=422, description="Validation error (invalid JSON body or missing fields)", @OA\JsonContent(ref="#/components/schemas/ValidationError"))
  * )
  *
  * @OA\Post(

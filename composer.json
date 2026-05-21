@@ -37,7 +37,8 @@
     "scripts": {
         "post-autoload-dump": [
             "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",
-            "@php artisan package:discover --ansi"
+            "@php artisan package:discover --ansi",
+            "@php artisan l5-swagger:generate --ansi || echo Swagger generation skipped"
         ],
         "post-update-cmd": [
             "@/usr/local/bin/php artisan vendor:publish --tag=laravel-assets --ansi --force"

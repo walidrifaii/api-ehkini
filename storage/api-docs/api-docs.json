@@ -1,0 +1,2597 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+        "title": "Taaruf API v2",
+        "description": "REST API documentation for Taaruf mobile app (v2). Base URL prefix: `/api/v2`. Authenticated routes require Laravel Sanctum bearer token.",
+        "version": "2.0.0"
+    },
+    "servers": [
+        {
+            "url": "https://amctag-ehkini.38f0fz.easypanel.host/",
+            "description": "Application server (set L5_SWAGGER_CONST_HOST in .env to your APP_URL)"
+        }
+    ],
+    "paths": {
+        "/api/v2/register": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Register (complete flow alias)",
+                "description": "Same as POST /register/complete — full registration after OTP verification.",
+                "operationId": "155f4cfce25ae1ce0be69d471c0586f8",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "first_name",
+                                    "last_name",
+                                    "country_code",
+                                    "phone",
+                                    "password",
+                                    "verified_token",
+                                    "date_of_birth"
+                                ],
+                                "properties": {
+                                    "first_name": {
+                                        "type": "string"
+                                    },
+                                    "last_name": {
+                                        "type": "string"
+                                    },
+                                    "country_code": {
+                                        "type": "string",
+                                        "example": "+961"
+                                    },
+                                    "country_id": {
+                                        "type": "integer",
+                                        "nullable": true
+                                    },
+                                    "phone": {
+                                        "type": "string"
+                                    },
+                                    "password": {
+                                        "type": "string",
+                                        "format": "password"
+                                    },
+                                    "verified_token": {
+                                        "type": "string"
+                                    },
+                                    "date_of_birth": {
+                                        "type": "string",
+                                        "format": "date"
+                                    },
+                                    "gender": {
+                                        "type": "string",
+                                        "enum": [
+                                            "male",
+                                            "female"
+                                        ]
+                                    },
+                                    "location": {
+                                        "type": "string"
+                                    },
+                                    "occupation": {
+                                        "type": "string"
+                                    },
+                                    "education": {
+                                        "type": "string"
+                                    },
+                                    "about_me": {
+                                        "type": "string"
+                                    },
+                                    "fcm_token": {
+                                        "type": "string"
+                                    },
+                                    "platform": {
+                                        "type": "string",
+                                        "enum": [
+                                            "android",
+                                            "ios",
+                                            "web"
+                                        ]
+                                    },
+                                    "interests": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "integer"
+                                        }
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Account created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AuthTokenResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v2/register/send-otp": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Send registration OTP (v2)",
+                "operationId": "dfba5d2af8a639b9144cf752a65a3d9d",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "country_code",
+                                    "phone"
+                                ],
+                                "properties": {
+                                    "country_code": {
+                                        "type": "string"
+                                    },
+                                    "phone": {
+                                        "type": "string"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OTP sent"
+                    },
+                    "422": {
+                        "description": "Phone already exists"
+                    }
+                }
+            }
+        },
+        "/api/v2/register/verify-otp": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Verify registration OTP (v2)",
+                "operationId": "2938fb32f4be62a309baa2f640ba2278",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "country_code",
+                                    "phone",
+                                    "otp_token",
+                                    "code"
+                                ],
+                                "properties": {
+                                    "country_code": {
+                                        "type": "string"
+                                    },
+                                    "phone": {
+                                        "type": "string"
+                                    },
+                                    "otp_token": {
+                                        "type": "string"
+                                    },
+                                    "code": {
+                                        "type": "string",
+                                        "example": "123456"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OTP verified"
+                    }
+                }
+            }
+        },
+        "/api/v2/register/complete": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Complete registration after OTP (v2)",
+                "operationId": "3207b23d92003a21a8ceee69a918d383",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "first_name",
+                                    "last_name",
+                                    "country_code",
+                                    "phone",
+                                    "password",
+                                    "verified_token",
+                                    "date_of_birth"
+                                ],
+                                "properties": {
+                                    "first_name": {
+                                        "type": "string"
+                                    },
+                                    "last_name": {
+                                        "type": "string"
+                                    },
+                                    "country_code": {
+                                        "type": "string"
+                                    },
+                                    "country_id": {
+                                        "type": "integer",
+                                        "nullable": true
+                                    },
+                                    "phone": {
+                                        "type": "string"
+                                    },
+                                    "password": {
+                                        "type": "string"
+                                    },
+                                    "verified_token": {
+                                        "type": "string"
+                                    },
+                                    "date_of_birth": {
+                                        "type": "string",
+                                        "format": "date"
+                                    },
+                                    "gender": {
+                                        "type": "string",
+                                        "enum": [
+                                            "male",
+                                            "female"
+                                        ]
+                                    },
+                                    "interests": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "integer"
+                                        }
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AuthTokenResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v2/login": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Login",
+                "operationId": "eb566c90e6ff7187f1e98b2cffafaea4",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "country_code",
+                                    "phone",
+                                    "password"
+                                ],
+                                "properties": {
+                                    "country_code": {
+                                        "type": "string"
+                                    },
+                                    "phone": {
+                                        "type": "string"
+                                    },
+                                    "password": {
+                                        "type": "string"
+                                    },
+                                    "fcm_token": {
+                                        "type": "string"
+                                    },
+                                    "platform": {
+                                        "type": "string",
+                                        "enum": [
+                                            "android",
+                                            "ios",
+                                            "web"
+                                        ]
+                                    },
+                                    "location": {
+                                        "type": "string"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AuthTokenResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid credentials"
+                    }
+                }
+            }
+        },
+        "/api/v2/check-phone": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Check if phone exists and age eligibility",
+                "operationId": "550274fd756539db5ac97fb29b9e2af7",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "country_code",
+                                    "phone",
+                                    "date_of_birth"
+                                ],
+                                "properties": {
+                                    "country_code": {
+                                        "type": "string"
+                                    },
+                                    "phone": {
+                                        "type": "string"
+                                    },
+                                    "date_of_birth": {
+                                        "type": "string",
+                                        "format": "date"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Check result"
+                    }
+                }
+            }
+        },
+        "/api/v2/forgot-password/send-otp": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Send forgot-password OTP",
+                "operationId": "c7ae88d0a3dd1c48543edd6311615849",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "country_code": {
+                                        "type": "string"
+                                    },
+                                    "phone": {
+                                        "type": "string"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OTP sent"
+                    }
+                }
+            }
+        },
+        "/api/v2/forgot-password/verify-otp": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Verify forgot-password OTP",
+                "operationId": "cb4eed844e779d8c8778dce3f8f7d238",
+                "responses": {
+                    "200": {
+                        "description": "Verified"
+                    }
+                }
+            }
+        },
+        "/api/v2/forgot-password/reset-password": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Reset password after OTP",
+                "operationId": "e02ee835a44301de430fa5618c21ba94",
+                "responses": {
+                    "200": {
+                        "description": "Password reset"
+                    }
+                }
+            }
+        },
+        "/api/v2/countries": {
+            "get": {
+                "tags": [
+                    "Countries"
+                ],
+                "summary": "List countries (v2)",
+                "operationId": "ffa39b68d325a43069880bbe941045c6",
+                "responses": {
+                    "200": {
+                        "description": "Country list"
+                    }
+                }
+            }
+        },
+        "/api/v2/me": {
+            "get": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Current authenticated user",
+                "operationId": "d1c6377894cecfea8667482a80d7e120",
+                "responses": {
+                    "200": {
+                        "description": "User profile"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/logout": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Logout (revoke token)",
+                "operationId": "e53d9e0ef8f4e2395aede364dbed1f0c",
+                "responses": {
+                    "200": {
+                        "description": "Logged out"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/account/deactivate": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Deactivate account (soft delete)",
+                "operationId": "7d98d584784cce006ed0b8ea57ac637b",
+                "responses": {
+                    "200": {
+                        "description": "Account deactivated"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/profile/update": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Update profile",
+                "operationId": "b9c2b3fd6be2f67f0e7d0e34d61e58ec",
+                "requestBody": {
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "properties": {
+                                    "country_id": {
+                                        "type": "integer"
+                                    },
+                                    "first_name": {
+                                        "type": "string"
+                                    },
+                                    "last_name": {
+                                        "type": "string"
+                                    },
+                                    "profile_image": {
+                                        "type": "string",
+                                        "format": "binary"
+                                    },
+                                    "gender": {
+                                        "type": "string",
+                                        "enum": [
+                                            "male",
+                                            "female"
+                                        ]
+                                    },
+                                    "interests": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "integer"
+                                        }
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Profile updated"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/profile/phone/send-otp-new": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Send OTP to change phone number",
+                "operationId": "d46b1ab54f4b4e2bdd53e6452a9405ea",
+                "responses": {
+                    "200": {
+                        "description": "OTP sent"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/profile/phone/confirm-new": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Confirm new phone with OTP",
+                "operationId": "3361444acf9490e1c0acf2d56e46c381",
+                "responses": {
+                    "200": {
+                        "description": "Phone updated"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/profile/password/send-otp": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Send OTP to change password",
+                "operationId": "55ada719cabc1f2ca5521a0374490366",
+                "responses": {
+                    "200": {
+                        "description": "OTP sent"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/profile/password/update": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Update password with OTP",
+                "operationId": "f18ab0bf58211c28f9f072b3b58b49aa",
+                "responses": {
+                    "200": {
+                        "description": "Password updated"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/profile/image": {
+            "delete": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Delete profile image",
+                "operationId": "4645b8643bd317e6a258e7722c96ea62",
+                "responses": {
+                    "200": {
+                        "description": "Image removed"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/friends/request": {
+            "post": {
+                "tags": [
+                    "Friends"
+                ],
+                "summary": "Send friend request",
+                "operationId": "7c9c687943ebdb107a88d8b074ce2a46",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "receiver_id"
+                                ],
+                                "properties": {
+                                    "receiver_id": {
+                                        "type": "integer"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Request sent"
+                    },
+                    "422": {
+                        "description": "Invalid or duplicate request"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/friends/respond": {
+            "post": {
+                "tags": [
+                    "Friends"
+                ],
+                "summary": "Accept or reject friend request",
+                "operationId": "7f887a348cb93c07e60f6c1df93a339b",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "friendship_id",
+                                    "action"
+                                ],
+                                "properties": {
+                                    "friendship_id": {
+                                        "type": "integer"
+                                    },
+                                    "action": {
+                                        "type": "string",
+                                        "enum": [
+                                            "accept",
+                                            "reject"
+                                        ]
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Updated"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/friends/requests": {
+            "get": {
+                "tags": [
+                    "Friends"
+                ],
+                "summary": "Incoming friend requests",
+                "operationId": "88fc2e00293819a7bcfce11f869bef8c",
+                "responses": {
+                    "200": {
+                        "description": "Pending requests"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/friends/requests/cancel": {
+            "post": {
+                "tags": [
+                    "Friends"
+                ],
+                "summary": "Cancel outgoing friend request",
+                "operationId": "d58617937017e443d2b1a6583df86ccd",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "receiver_id"
+                                ],
+                                "properties": {
+                                    "receiver_id": {
+                                        "type": "integer"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Cancelled"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/friends/remove": {
+            "post": {
+                "tags": [
+                    "Friends"
+                ],
+                "summary": "Remove friend",
+                "operationId": "9157dc502ec588071d195b5ad43fc208",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "user_id"
+                                ],
+                                "properties": {
+                                    "user_id": {
+                                        "type": "integer"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Removed"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/friends": {
+            "get": {
+                "tags": [
+                    "Friends"
+                ],
+                "summary": "List friends",
+                "operationId": "233732c65c6894874c6e666d30eeefe1",
+                "parameters": [
+                    {
+                        "name": "cursor",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Friends list"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/friends/search": {
+            "get": {
+                "tags": [
+                    "Friends"
+                ],
+                "summary": "Search within friends",
+                "operationId": "a2f411dfe122b296eb0dfcf85da08a3f",
+                "parameters": [
+                    {
+                        "name": "name",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Matching friends"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/friends/suggested": {
+            "get": {
+                "tags": [
+                    "Friends"
+                ],
+                "summary": "Suggested friends by shared interests",
+                "operationId": "cc261444b73bb00b3e8af494fab3177c",
+                "parameters": [
+                    {
+                        "name": "cursor",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Suggestions"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/friends/{userId}": {
+            "get": {
+                "tags": [
+                    "Friends"
+                ],
+                "summary": "Friend details",
+                "operationId": "4140f7c03b30c75e28d5c2054e46c68b",
+                "parameters": [
+                    {
+                        "name": "userId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Friend profile"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/v1/friends/{userId}": {
+            "get": {
+                "tags": [
+                    "Friends"
+                ],
+                "summary": "Friend details (legacy path alias)",
+                "operationId": "434bbeb383b0e552ad63d0e73f23fae0",
+                "parameters": [
+                    {
+                        "name": "userId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Friend profile"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/gift-categories": {
+            "get": {
+                "tags": [
+                    "Gifts"
+                ],
+                "summary": "List gift categories",
+                "operationId": "72dbf0cdbc276e540fb0fa1105bd6bf4",
+                "responses": {
+                    "200": {
+                        "description": "Categories"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/gifts": {
+            "get": {
+                "tags": [
+                    "Gifts"
+                ],
+                "summary": "List gifts",
+                "operationId": "0e96ae5443c7c78b9d1bfbd3985839d3",
+                "parameters": [
+                    {
+                        "name": "category_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Gifts list"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/gifts/send": {
+            "post": {
+                "tags": [
+                    "Gifts"
+                ],
+                "summary": "Send gift to user",
+                "operationId": "11f4b1db3fc5f56e982974ae462384a6",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "gift_id": {
+                                        "type": "integer"
+                                    },
+                                    "receiver_id": {
+                                        "type": "integer"
+                                    },
+                                    "quantity": {
+                                        "type": "integer",
+                                        "default": 1
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Gift sent"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/wallet/add": {
+            "post": {
+                "tags": [
+                    "Gifts"
+                ],
+                "summary": "Add wallet balance",
+                "operationId": "750bd8de6587bad47057202ff84e17ae",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "amount": {
+                                        "type": "number",
+                                        "format": "float"
+                                    },
+                                    "reference": {
+                                        "type": "string"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Balance updated"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/wallet/balance": {
+            "get": {
+                "tags": [
+                    "Gifts"
+                ],
+                "summary": "Get wallet balance",
+                "operationId": "46206b334a857df752cf0a0b9bb18dc1",
+                "responses": {
+                    "200": {
+                        "description": "Current balance"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/wallet/gift-transactions": {
+            "get": {
+                "tags": [
+                    "Gifts"
+                ],
+                "summary": "Gift transaction history",
+                "operationId": "3f194f53a96a3d6b55a7e995bc3390f0",
+                "parameters": [
+                    {
+                        "name": "cursor",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Transactions"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/voice/upload": {
+            "post": {
+                "tags": [
+                    "Media"
+                ],
+                "summary": "Upload voice message",
+                "operationId": "1c0ad1abc893db33f05bf883ec4c68e7",
+                "requestBody": {
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "properties": {
+                                    "audio": {
+                                        "type": "string",
+                                        "format": "binary"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Upload URL or file info"
+                    }
+                }
+            }
+        },
+        "/api/v2/media/image/upload": {
+            "post": {
+                "tags": [
+                    "Media"
+                ],
+                "summary": "Upload image",
+                "operationId": "04a4c51b30b3db54ff725b31cb094517",
+                "requestBody": {
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "properties": {
+                                    "image": {
+                                        "type": "string",
+                                        "format": "binary"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Image uploaded"
+                    }
+                }
+            }
+        },
+        "/api/v2/media/video/upload": {
+            "post": {
+                "tags": [
+                    "Media"
+                ],
+                "summary": "Upload video",
+                "operationId": "48d3169bdd8674d6b3d4f4cf6b52049c",
+                "requestBody": {
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "properties": {
+                                    "video": {
+                                        "type": "string",
+                                        "format": "binary"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Video uploaded"
+                    }
+                }
+            }
+        },
+        "/api/v2/app/version": {
+            "get": {
+                "tags": [
+                    "App"
+                ],
+                "summary": "Check app version / force update",
+                "operationId": "cd42e705d6165d771ab2d6f6b94cb908",
+                "parameters": [
+                    {
+                        "name": "platform",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "android",
+                                "ios"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "version",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Version check result"
+                    }
+                }
+            }
+        },
+        "/api/v2/pages/{slug}": {
+            "get": {
+                "tags": [
+                    "App"
+                ],
+                "summary": "Get static page content",
+                "operationId": "3ccb7314320af6e3facadd5621f49fb9",
+                "parameters": [
+                    {
+                        "name": "slug",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "example": "privacy"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Page HTML or JSON content"
+                    }
+                }
+            }
+        },
+        "/api/v2/translations/{lang}": {
+            "get": {
+                "tags": [
+                    "App"
+                ],
+                "summary": "Get translation strings",
+                "operationId": "27e62ce76773eb7b7c22f46fc227c671",
+                "parameters": [
+                    {
+                        "name": "lang",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "example": "en"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Translation key-value map"
+                    }
+                }
+            }
+        },
+        "/api/v2/interests": {
+            "get": {
+                "tags": [
+                    "App"
+                ],
+                "summary": "List interests",
+                "operationId": "a69fcb67a47797056b0d79f221e587fa",
+                "responses": {
+                    "200": {
+                        "description": "Interests list"
+                    }
+                }
+            }
+        },
+        "/api/v2/dictionary": {
+            "get": {
+                "tags": [
+                    "Language"
+                ],
+                "summary": "Language dictionary",
+                "operationId": "5684934595be933f1bdb948738093eb6",
+                "responses": {
+                    "200": {
+                        "description": "Dictionary entries"
+                    }
+                }
+            }
+        },
+        "/api/v2/languages": {
+            "get": {
+                "tags": [
+                    "Language"
+                ],
+                "summary": "Available languages",
+                "operationId": "1833b82a072afd1a2ba0705e74e38bbe",
+                "responses": {
+                    "200": {
+                        "description": "Languages list"
+                    }
+                }
+            }
+        },
+        "/api/v2/language/change": {
+            "post": {
+                "tags": [
+                    "Language"
+                ],
+                "summary": "Change user language",
+                "operationId": "edd8708948bfcbe18d0f975275f26d85",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "language_id": {
+                                        "type": "integer"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Language changed"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/language/current": {
+            "get": {
+                "tags": [
+                    "Language"
+                ],
+                "summary": "Current user language",
+                "operationId": "5821a3c71109b5d84ec0e1902fdc85d4",
+                "responses": {
+                    "200": {
+                        "description": "Current language"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/agora/token": {
+            "get": {
+                "tags": [
+                    "Agora"
+                ],
+                "summary": "Generate Agora RTC token",
+                "operationId": "695915799c1e8685de2343ff34055152",
+                "parameters": [
+                    {
+                        "name": "channel",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "uid",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Token and expiry"
+                    }
+                }
+            }
+        },
+        "/api/v2/notifications": {
+            "get": {
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "List notifications",
+                "operationId": "1b6a16e216bdad012fc10af89ffe5e85",
+                "parameters": [
+                    {
+                        "name": "cursor",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Notifications list"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/notifications/read": {
+            "post": {
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "Mark notifications as read",
+                "operationId": "90f0e24db6209f1098ec6455dc3053d8",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "notification_ids": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "all": {
+                                        "type": "boolean"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Marked read"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/notifications/{notification}": {
+            "delete": {
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "Delete notification",
+                "operationId": "5fe239943db3432763080b038d89426f",
+                "parameters": [
+                    {
+                        "name": "notification",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Deleted"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/test-notification": {
+            "post": {
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "Send test push to current user",
+                "operationId": "9716096c58475def413be4c654a7fd08",
+                "responses": {
+                    "200": {
+                        "description": "Sent"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/test-notification-all": {
+            "post": {
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "Broadcast test push (admin/dev)",
+                "operationId": "3a04e95a1ceba97d4cf4218e6e3ec1c9",
+                "responses": {
+                    "200": {
+                        "description": "Broadcast sent"
+                    }
+                }
+            }
+        },
+        "/api/v2/chat/notify": {
+            "post": {
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "Send chat message notification",
+                "operationId": "22bd3b419115ef1487cd297cf77a4abf",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "receiver_id": {
+                                        "type": "integer"
+                                    },
+                                    "sender_id": {
+                                        "type": "integer"
+                                    },
+                                    "message": {
+                                        "type": "string"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Notification sent"
+                    }
+                }
+            }
+        },
+        "/api/v2/call/notify": {
+            "post": {
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "Incoming call notification",
+                "operationId": "f9ad9753e01949d9cce6fed0eeb85e1f",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Sent"
+                    }
+                }
+            }
+        },
+        "/api/v2/call/end": {
+            "post": {
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "Call ended notification",
+                "operationId": "9df7dd47db3983042d893b1149b78813",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Sent"
+                    }
+                }
+            }
+        },
+        "/api/v2/users/{user}/posts": {
+            "get": {
+                "tags": [
+                    "Posts"
+                ],
+                "summary": "Get posts for a user",
+                "operationId": "0d8f4d459ea238d9c76c7d3bf1f721b2",
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "cursor",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Posts list"
+                    }
+                }
+            }
+        },
+        "/api/v2/posts": {
+            "post": {
+                "tags": [
+                    "Posts"
+                ],
+                "summary": "Create post (image)",
+                "operationId": "0fb59d62bace3a88a71b3d0f9d05369d",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "required": [
+                                    "image"
+                                ],
+                                "properties": {
+                                    "image": {
+                                        "type": "string",
+                                        "format": "binary"
+                                    },
+                                    "caption": {
+                                        "type": "string"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Post created"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/posts/{post}": {
+            "delete": {
+                "tags": [
+                    "Posts"
+                ],
+                "summary": "Delete post",
+                "operationId": "a35c003f744ae8ed0e0c244df8bd7910",
+                "parameters": [
+                    {
+                        "name": "post",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Deleted"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/posts/{post}/report": {
+            "post": {
+                "tags": [
+                    "Posts"
+                ],
+                "summary": "Report a post",
+                "operationId": "38e828fbeef8cfcfb48c29ebb92f6b8e",
+                "parameters": [
+                    {
+                        "name": "post",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "reason": {
+                                        "type": "string"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Reported"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/stories": {
+            "get": {
+                "tags": [
+                    "Stories"
+                ],
+                "summary": "List active stories",
+                "operationId": "d292a8c48320af9710daec7c251f2d58",
+                "responses": {
+                    "200": {
+                        "description": "Stories feed"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Stories"
+                ],
+                "summary": "Upload story",
+                "operationId": "82a433b42cf178a0fa362c3bb4889dd2",
+                "requestBody": {
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "properties": {
+                                    "media": {
+                                        "type": "string",
+                                        "format": "binary"
+                                    },
+                                    "type": {
+                                        "type": "string",
+                                        "enum": [
+                                            "image",
+                                            "video"
+                                        ]
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Story created"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/stories/{story}/view": {
+            "post": {
+                "tags": [
+                    "Stories"
+                ],
+                "summary": "Mark story as viewed",
+                "operationId": "6e517b5fa0fff67ea7e35071b84a3a37",
+                "parameters": [
+                    {
+                        "name": "story",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "View recorded"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/stories/{story}/views": {
+            "get": {
+                "tags": [
+                    "Stories"
+                ],
+                "summary": "List story viewers",
+                "operationId": "75d31fa95b8573d876e9459b8e23262e",
+                "parameters": [
+                    {
+                        "name": "story",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Viewers list"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/stories/{story}/report": {
+            "post": {
+                "tags": [
+                    "Stories"
+                ],
+                "summary": "Report a story",
+                "operationId": "248a7b53cb733d4dc58cf0bd6a6e1a74",
+                "parameters": [
+                    {
+                        "name": "story",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Reported"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/stories/{story}": {
+            "delete": {
+                "tags": [
+                    "Stories"
+                ],
+                "summary": "Delete story",
+                "operationId": "015c206ce523bd3690eb351559a26f9a",
+                "parameters": [
+                    {
+                        "name": "story",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Deleted"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/users": {
+            "get": {
+                "tags": [
+                    "Users"
+                ],
+                "summary": "List users (paginated)",
+                "operationId": "319b230ce7c517530968e2468e6ae43f",
+                "parameters": [
+                    {
+                        "name": "cursor",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 20
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "User list with cursor pagination"
+                    }
+                }
+            }
+        },
+        "/api/v2/users/search": {
+            "get": {
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Search users (public; enhanced filters in v2)",
+                "operationId": "1e956358fc3854d47e7be159bd4e36d8",
+                "parameters": [
+                    {
+                        "name": "name",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "keyword",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "q",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "gender",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "male",
+                                "female"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "country_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "country",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "age",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "min_age",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "max_age",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "interested",
+                        "in": "query",
+                        "description": "Interest IDs (comma-separated or array)",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "cursor",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Search results"
+                    },
+                    "422": {
+                        "description": "No search criteria provided"
+                    }
+                }
+            }
+        },
+        "/api/v2/users/{id}": {
+            "get": {
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Public user profile by ID",
+                "operationId": "669663e1b044e9b0f314419aa781f537",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "User",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "user": {
+                                            "$ref": "#/components/schemas/UserPublic"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not found"
+                    }
+                }
+            }
+        },
+        "/api/v2/user/{id}": {
+            "get": {
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Public user profile (alias)",
+                "operationId": "58aec203112510487ab199f2e2f099cf",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "User"
+                    }
+                }
+            }
+        },
+        "/api/v2/users/discover-by-country": {
+            "get": {
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Discover users by country (v2, auth)",
+                "operationId": "55921d010bb31facb41cdeba357304b8",
+                "parameters": [
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 20,
+                            "maximum": 100
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Paginated discoverable users"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/users/search/last": {
+            "get": {
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Get last saved user search filters (v2, auth)",
+                "operationId": "cba18ead32bdb67143ed60009071fbbf",
+                "responses": {
+                    "200": {
+                        "description": "Saved search and clicked user IDs"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Clear saved user search (v2, auth)",
+                "operationId": "f2e36a4394b03639fe8d3479e2b3f2a3",
+                "responses": {
+                    "200": {
+                        "description": "Cleared"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/users/search/click": {
+            "post": {
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Record search result profile click (v2, auth)",
+                "operationId": "d5144ed461d7fbb4cb1155051f19a4c9",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "user_id"
+                                ],
+                                "properties": {
+                                    "user_id": {
+                                        "type": "integer"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Recorded"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Remove user from recent search clicks (v2, auth)",
+                "operationId": "b5561011c2a4ce4e805ff253a9c0af16",
+                "parameters": [
+                    {
+                        "name": "user_id",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Removed"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/users/block": {
+            "post": {
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Block a user",
+                "operationId": "396630dfc9225743f9d79027100e3130",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "user_id"
+                                ],
+                                "properties": {
+                                    "user_id": {
+                                        "type": "integer"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Blocked"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/users/unblock": {
+            "post": {
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Unblock a user",
+                "operationId": "4bd7d33de836a572a5dfdd1ecac3ce25",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "user_id"
+                                ],
+                                "properties": {
+                                    "user_id": {
+                                        "type": "integer"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Unblocked"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/users/report": {
+            "post": {
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Report a user",
+                "operationId": "181e02f43f300427873dfc7ba2b81553",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "user_id",
+                                    "reason"
+                                ],
+                                "properties": {
+                                    "user_id": {
+                                        "type": "integer"
+                                    },
+                                    "reason": {
+                                        "type": "string",
+                                        "maxLength": 100
+                                    },
+                                    "description": {
+                                        "type": "string",
+                                        "maxLength": 2000
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Reported"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/users/blocked": {
+            "get": {
+                "tags": [
+                    "Users"
+                ],
+                "summary": "List blocked users",
+                "operationId": "c274f109dbf465267bcc83f287a2bc28",
+                "responses": {
+                    "200": {
+                        "description": "Blocked users list"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "MessageResponse": {
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "example": "OK"
+                    }
+                },
+                "type": "object"
+            },
+            "ValidationError": {
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "example": "The given data was invalid."
+                    },
+                    "errors": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "schema": "Schemas",
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                },
+                "type": "object"
+            },
+            "Schemas": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                }
+            },
+            "UserPublic": {
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "example": 1
+                    },
+                    "first_name": {
+                        "type": "string"
+                    },
+                    "last_name": {
+                        "type": "string"
+                    },
+                    "full_name": {
+                        "type": "string"
+                    },
+                    "profile_image_url": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "type": "object"
+            },
+            "AuthTokenResponse": {
+                "properties": {
+                    "message": {
+                        "type": "string"
+                    },
+                    "token": {
+                        "type": "string",
+                        "example": "1|abc..."
+                    },
+                    "user": {
+                        "type": "object"
+                    }
+                },
+                "type": "object"
+            }
+        },
+        "securitySchemes": {
+            "sanctum": {
+                "type": "http",
+                "description": "Login or register to obtain a token. Use: Authorization: Bearer {token}",
+                "bearerFormat": "Sanctum",
+                "scheme": "bearer"
+            }
+        }
+    },
+    "tags": [
+        {
+            "name": "Auth",
+            "description": "Registration, login, password recovery, profile"
+        },
+        {
+            "name": "Countries",
+            "description": "Country list (v2)"
+        },
+        {
+            "name": "Friends",
+            "description": "Friend requests and friendships"
+        },
+        {
+            "name": "Gifts",
+            "description": "Virtual gifts and wallet"
+        },
+        {
+            "name": "Media",
+            "description": "File uploads"
+        },
+        {
+            "name": "App",
+            "description": "App config, translations, pages"
+        },
+        {
+            "name": "Language",
+            "description": "Localization"
+        },
+        {
+            "name": "Agora",
+            "description": "Voice/video tokens"
+        },
+        {
+            "name": "Notifications",
+            "description": "In-app and push notifications"
+        },
+        {
+            "name": "Posts",
+            "description": "User posts"
+        },
+        {
+            "name": "Stories",
+            "description": "Stories (24h content)"
+        },
+        {
+            "name": "Users",
+            "description": "User listing, profiles, discovery, safety"
+        }
+    ]
+}

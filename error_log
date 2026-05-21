@@ -1,0 +1,7 @@
+[25-Feb-2026 07:39:35 UTC] PHP Warning:  require_once(/public_html/app/taaruf/Tools-master/DynamicKey/AgoraDynamicKey/php/src
+/RtcTokenBuilder.php): Failed to open stream: No such file or directory in /home/amcserver/public_html/app/taaruf/generate_token.php on line 5
+[25-Feb-2026 07:39:35 UTC] PHP Fatal error:  Uncaught Error: Failed opening required '/public_html/app/taaruf/Tools-master/DynamicKey/AgoraDynamicKey/php/src
+/RtcTokenBuilder.php' (include_path='.:/opt/alt/php82/usr/share/pear:/opt/alt/php82/usr/share/php:/usr/share/pear:/usr/share/php') in /home/amcserver/public_html/app/taaruf/generate_token.php:5
+Stack trace:
+#0 {main}
+  thrown in /home/amcserver/public_html/app/taaruf/generate_token.php on line 5

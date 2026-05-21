@@ -1,0 +1,41 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class Post extends Model
+{
+    protected $table = 'posts';
+
+    protected $fillable = [
+        'user_id',
+        'image',
+    ];
+
+    protected $appends = ['image_url'];
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+      public function reports()
+    {
+        return $this->hasMany(PostReport::class, 'post_id');
+    }
+
+
+    /**
+     * Full public image URL
+     */
+    public function getImageUrlAttribute()
+    {
+        if (! $this->image) {
+            return null;
+        }
+
+        // APP_URL = https://amcserver.com/app/taaruf
+        $base = rtrim(config('app.url'), '/');
+        return $base . '/storage/app/public/' . ltrim($this->image, '/');
+    }
+}

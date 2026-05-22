@@ -1,0 +1,21 @@
+# Force the PHP provider so setup installs PHP, Composer, and Nginx.
+# Easypanel's Laravel preset can run "composer install" without that setup phase.
+providers = ["php"]
+
+[variables]
+NIXPACKS_PHP_ROOT_DIR = "/app/public"
+NIXPACKS_PHP_FALLBACK_PATH = "/index.php"
+
+[phases.install]
+cmds = [
+  "...",
+  "composer install --no-dev --optimize-autoloader --no-interaction",
+]
+
+[phases.build]
+cmds = [
+  "php artisan optimize:clear --no-interaction",
+  "php artisan config:cache --no-interaction",
+  "php artisan route:cache --no-interaction",
+  "php artisan view:cache --no-interaction",
+]

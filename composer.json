@@ -62,8 +62,7 @@
         "allow-plugins": {
             "pestphp/pest-plugin": true,
             "php-http/discovery": true
-        },
-        "cache-dir": "/home/amcserver/public_html/app/taaruf/cache"
+        }
     },
     "minimum-stability": "stable",
     "prefer-stable": true

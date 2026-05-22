@@ -30,7 +30,7 @@ class MediaController extends Controller
 
         $filename = Str::uuid()->toString() . '.' . $file->getClientOriginalExtension();
 
-        $path = $file->storeAs('images', $filename, MediaStorage::diskName());
+        $path = MediaStorage::storeUploadedFile($file, 'images', $filename);
 
         $url = MediaStorage::url($path);
 
@@ -66,7 +66,7 @@ class MediaController extends Controller
 
         $filename = Str::uuid()->toString() . '.' . $file->getClientOriginalExtension();
 
-        $path = $file->storeAs('videos', $filename, MediaStorage::diskName());
+        $path = MediaStorage::storeUploadedFile($file, 'videos', $filename);
 
         $url = MediaStorage::url($path);
 

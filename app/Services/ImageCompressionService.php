@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\MediaStorage;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -48,13 +49,13 @@ class ImageCompressionService
         $relativePath = $directory.'/'.$filename;
 
         if (! extension_loaded('gd')) {
-            return $file->store($directory, $disk);
+            return $this->storeFallback($file, $directory, $disk);
         }
 
         try {
             $path = $file->getRealPath();
             if ($path === false || ! is_readable($path)) {
-                return $file->store($directory, $disk);
+                return $this->storeFallback($file, $directory, $disk);
             }
 
             $manager = new ImageManager(new Driver());
@@ -65,16 +66,33 @@ class ImageCompressionService
             $binary = (string) $image->toJpeg($q);
 
             if ($binary === '') {
-                return $file->store($directory, $disk);
+                return $this->storeFallback($file, $directory, $disk);
+            }
+
+            if (MediaStorage::usesImageKit()) {
+                MediaStorage::putBinary($relativePath, $binary);
+
+                return $relativePath;
             }
 
             if (! Storage::disk($disk)->put($relativePath, $binary)) {
-                return $file->store($directory, $disk);
+                return $this->storeFallback($file, $directory, $disk);
             }
 
             return $relativePath;
         } catch (Throwable) {
-            return $file->store($directory, $disk);
+            return $this->storeFallback($file, $directory, $disk);
         }
+    }
+
+    private function storeFallback(UploadedFile $file, string $directory, string $disk): string
+    {
+        if (MediaStorage::usesImageKit()) {
+            $filename = (string) Str::uuid().'.'.$file->getClientOriginalExtension();
+
+            return MediaStorage::storeUploadedFile($file, $directory, $filename);
+        }
+
+        return $file->store($directory, $disk);
     }
 }

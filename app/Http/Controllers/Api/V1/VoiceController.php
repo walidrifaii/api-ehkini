@@ -30,7 +30,7 @@ class VoiceController extends Controller
         // Generate clean unique name
         $filename = Str::uuid()->toString() . '.' . $file->getClientOriginalExtension();
 
-        $path = $file->storeAs('voices', $filename, MediaStorage::diskName());
+        $path = MediaStorage::storeUploadedFile($file, 'voices', $filename);
 
         $url = MediaStorage::url($path);
 

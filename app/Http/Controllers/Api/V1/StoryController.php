@@ -67,7 +67,7 @@ class StoryController extends Controller
         } else {
             $ext = $file->getClientOriginalExtension();
             $filename = Str::uuid()->toString() . '.' . $ext;
-            $path = $file->storeAs($folder, $filename, MediaStorage::diskName());
+            $path = MediaStorage::storeUploadedFile($file, $folder, $filename);
         }
 
         if (! $path) {

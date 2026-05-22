@@ -11,7 +11,7 @@
             "description": "Current host (same as this Swagger page — use for local testing)"
         },
         {
-            "url": "http://127.0.0.1:8000",
+            "url": "http://localhost",
             "description": "Production server (from APP_URL / L5_SWAGGER_CONST_HOST)"
         }
     ],

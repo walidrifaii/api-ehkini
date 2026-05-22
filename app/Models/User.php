@@ -74,11 +74,7 @@ class User extends Authenticatable
             return null;
         }
 
-        // APP_URL = https://amcserver.com/app/taaruf
-        $base = rtrim(config('app.url'), '/');
-
-        // DB value: profiles/filename.png
-        return $base . '/storage/app/public/' . ltrim($this->profile_image, '/');
+        return Storage::disk('public')->url(ltrim($this->profile_image, '/'));
     }
 
     /**

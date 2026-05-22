@@ -1,6 +1,19 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\File;
+
+// Old API/mobile clients used /storage/app/public/... — serve files from the real storage path.
+Route::get('/storage/app/public/{path}', function (string $path) {
+    $path = str_replace(['..', '\\'], '', $path);
+    $fullPath = storage_path('app/public/' . $path);
+
+    if (! File::isFile($fullPath)) {
+        abort(404);
+    }
+
+    return response()->file($fullPath);
+})->where('path', '.*');
 
 Route::get('/make-storage-link', function () {
 

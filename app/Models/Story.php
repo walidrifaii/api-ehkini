@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
 
 class Story extends Model
 {
@@ -46,9 +47,10 @@ class Story extends Model
 
     public function getMediaUrlAttribute()
     {
-        if (! $this->media) return null;
+        if (! $this->media) {
+            return null;
+        }
 
-        $base = rtrim(config('app.url'), '/');
-        return $base . '/storage/app/public/' . ltrim($this->media, '/');
+        return Storage::disk('public')->url(ltrim($this->media, '/'));
     }
 }

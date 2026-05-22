@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
 
 class Post extends Model
 {
@@ -34,8 +35,6 @@ class Post extends Model
             return null;
         }
 
-        // APP_URL = https://amcserver.com/app/taaruf
-        $base = rtrim(config('app.url'), '/');
-        return $base . '/storage/app/public/' . ltrim($this->image, '/');
+        return Storage::disk('public')->url(ltrim($this->image, '/'));
     }
 }

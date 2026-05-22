@@ -19,6 +19,7 @@ cmds = [
 
 [phases.build]
 cmds = [
+  "php artisan storage:link --force --no-interaction",
   "php artisan optimize:clear --no-interaction",
   "php artisan config:cache --no-interaction",
   "php artisan route:cache --no-interaction",

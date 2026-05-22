@@ -1,14 +1,19 @@
-# Force the PHP provider so setup installs PHP, Composer, and Nginx.
-# Easypanel's Laravel preset can run "composer install" without that setup phase.
+# PHP provider installs Composer in the setup phase.
+# In Easypanel: remove NIXPACKS_INSTALL_CMD, NIXPACKS_BUILD_CMD, NIXPACKS_START_CMD
+# from Environment, or use Dockerfile build instead.
 providers = ["php"]
 
 [variables]
 NIXPACKS_PHP_ROOT_DIR = "/app/public"
 NIXPACKS_PHP_FALLBACK_PATH = "/index.php"
 
+[phases.setup]
+nixPkgs = ["php81", "php81Packages.composer", "nginx", "libmysqlclient"]
+nixpkgsArchive = "e24b4c09e963677b1beea49d411cd315a024ad3a"
+
 [phases.install]
 cmds = [
-  "...",
+  "mkdir -p /var/log/nginx /var/cache/nginx",
   "composer install --no-dev --optimize-autoloader --no-interaction",
 ]
 

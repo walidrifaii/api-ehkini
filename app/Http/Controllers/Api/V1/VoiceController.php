@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Support\MediaStorage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -29,11 +30,9 @@ class VoiceController extends Controller
         // Generate clean unique name
         $filename = Str::uuid()->toString() . '.' . $file->getClientOriginalExtension();
 
-        // Store in: storage/app/public/voices
-        $path = $file->storeAs('voices', $filename, 'public');
+        $path = $file->storeAs('voices', $filename, MediaStorage::diskName());
 
-        // Build full URL
-        $url = asset('storage/' . $path);
+        $url = MediaStorage::url($path);
 
         return response()->json([
             'success' => true,

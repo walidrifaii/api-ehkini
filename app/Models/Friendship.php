@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\MediaStorage;
 use Illuminate\Database\Eloquent\Model;
 
 class Friendship extends Model
@@ -19,7 +20,7 @@ class Friendship extends Model
   public function getProfileImageUrlAttribute(): ?string
    {
     if (! $this->profile_image) return null;
-    return url('storage/' . ltrim($this->profile_image, '/'));
+    return MediaStorage::url($this->profile_image);
     }
 
     public function sender()

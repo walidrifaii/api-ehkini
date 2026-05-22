@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Support\MediaStorage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -29,10 +30,9 @@ class MediaController extends Controller
 
         $filename = Str::uuid()->toString() . '.' . $file->getClientOriginalExtension();
 
-        // storage/app/public/images
-        $path = $file->storeAs('images', $filename, 'public');
+        $path = $file->storeAs('images', $filename, MediaStorage::diskName());
 
-        $url = asset('storage/' . $path);
+        $url = MediaStorage::url($path);
 
         return response()->json([
             'success'   => true,
@@ -66,10 +66,9 @@ class MediaController extends Controller
 
         $filename = Str::uuid()->toString() . '.' . $file->getClientOriginalExtension();
 
-        // storage/app/public/videos
-        $path = $file->storeAs('videos', $filename, 'public');
+        $path = $file->storeAs('videos', $filename, MediaStorage::diskName());
 
-        $url = asset('storage/' . $path);
+        $url = MediaStorage::url($path);
 
         return response()->json([
             'success'   => true,

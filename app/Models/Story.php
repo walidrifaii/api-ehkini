@@ -3,7 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Storage;
+use App\Support\MediaStorage;
 
 class Story extends Model
 {
@@ -51,6 +51,6 @@ class Story extends Model
             return null;
         }
 
-        return Storage::disk('public')->url(ltrim($this->media, '/'));
+        return MediaStorage::url($this->media);
     }
 }

@@ -7,6 +7,7 @@ use App\Models\Friendship;
 use App\Models\GiftTransaction;
 use App\Models\User;
 use App\Services\ImageCompressionService;
+use App\Support\MediaStorage;
 use App\Services\WhatsAppNodeCampaignOtpService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
@@ -82,7 +83,7 @@ class AuthController extends Controller
             if ($request->hasFile('profile_image')) {
                 $profileImagePath = app(ImageCompressionService::class)->storeCompressedJpeg(
                     $request->file('profile_image'),
-                    'public',
+                    MediaStorage::diskName(),
                     'profiles',
                     ImageCompressionService::PROFILE_MAX_SIDE
                 );
@@ -125,7 +126,7 @@ class AuthController extends Controller
             DB::rollBack();
 
             if ($profileImagePath) {
-                Storage::disk('public')->delete($profileImagePath);
+                MediaStorage::delete($profileImagePath);
             }
 
             return response()->json([
@@ -353,7 +354,7 @@ class AuthController extends Controller
             if ($request->hasFile('profile_image')) {
                 $newImagePath = app(ImageCompressionService::class)->storeCompressedJpeg(
                     $request->file('profile_image'),
-                    'public',
+                    MediaStorage::diskName(),
                     'profiles',
                     ImageCompressionService::PROFILE_MAX_SIDE
                 );
@@ -377,7 +378,7 @@ class AuthController extends Controller
             DB::rollBack();
 
             if ($newImagePath) {
-                Storage::disk('public')->delete($newImagePath);
+                MediaStorage::delete($newImagePath);
             }
 
             return response()->json([
@@ -387,7 +388,7 @@ class AuthController extends Controller
         }
 
         if ($newImagePath && $oldImagePath) {
-            Storage::disk('public')->delete($oldImagePath);
+            MediaStorage::delete($oldImagePath);
         }
 
         $user->refresh()->load('interests:id,name');
@@ -422,7 +423,7 @@ class AuthController extends Controller
         try {
             DB::beginTransaction();
 
-            Storage::disk('public')->delete($user->profile_image);
+            MediaStorage::delete($user->profile_image);
 
             $user->update([
                 'profile_image' => null,

@@ -6,8 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Post;
 use App\Models\PostReport;
 use App\Services\ImageCompressionService;
+use App\Support\MediaStorage;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 
 
 class PostController extends Controller
@@ -30,7 +30,7 @@ class PostController extends Controller
 
         $path = app(ImageCompressionService::class)->storeCompressedJpeg(
             $request->file('image'),
-            'public',
+            MediaStorage::diskName(),
             'posts',
             ImageCompressionService::POST_MAX_SIDE
         );
@@ -79,7 +79,7 @@ public function destroy(Request $request, Post $post)
 
     // ✅ delete image file if exists
     if (!empty($post->image)) {
-        Storage::disk('public')->delete($post->image);
+        MediaStorage::delete($post->image);
     }
 
     $post->delete();

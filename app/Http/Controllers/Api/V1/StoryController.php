@@ -7,6 +7,7 @@ use App\Models\Story;
 use App\Models\StoryReport;
 use App\Models\StoryView;
 use App\Services\ImageCompressionService;
+use App\Support\MediaStorage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -59,14 +60,14 @@ class StoryController extends Controller
         if ($type === 'image') {
             $path = app(ImageCompressionService::class)->storeCompressedJpeg(
                 $file,
-                'public',
+                MediaStorage::diskName(),
                 $folder,
                 ImageCompressionService::STORY_IMAGE_MAX_SIDE
             );
         } else {
             $ext = $file->getClientOriginalExtension();
             $filename = Str::uuid()->toString() . '.' . $ext;
-            $path = $file->storeAs($folder, $filename, 'public');
+            $path = $file->storeAs($folder, $filename, MediaStorage::diskName());
         }
 
         if (! $path) {
@@ -75,9 +76,10 @@ class StoryController extends Controller
 
         // If video => enforce <= 30 seconds using getID3
         if ($type === 'video') {
+            $fullPath = null;
             try {
                 $getID3   = new getID3;
-                $fullPath = Storage::disk('public')->path($path);
+                $fullPath = MediaStorage::localPath($path);
                 $info     = $getID3->analyze($fullPath);
 
                 $durationSeconds = isset($info['playtime_seconds'])
@@ -85,7 +87,7 @@ class StoryController extends Controller
                     : 0;
 
                 if ($durationSeconds > 30) {
-                    Storage::disk('public')->delete($path);
+                    MediaStorage::delete($path);
 
                     return response()->json([
                         'message'          => 'Video is too long. Max 30 seconds.',
@@ -99,11 +101,15 @@ class StoryController extends Controller
                     'error'   => $e->getMessage(),
                 ]);
 
-                Storage::disk('public')->delete($path);
+                MediaStorage::delete($path);
 
                 return response()->json([
                     'message' => 'Failed to validate video duration. Contact support.',
                 ], 422);
+            } finally {
+                if ($fullPath !== null) {
+                    MediaStorage::releaseTempPath($fullPath);
+                }
             }
         }
 
@@ -397,7 +403,7 @@ class StoryController extends Controller
             DB::beginTransaction();
 
             if (!empty($story->media)) {
-                Storage::disk('public')->delete($story->media);
+                MediaStorage::delete($story->media);
             }
 
             $story->update([

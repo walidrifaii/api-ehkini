@@ -4,7 +4,7 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use App\Models\Story;
-use Illuminate\Support\Facades\Storage;
+use App\Support\MediaStorage;
 
 class ExpireStories extends Command
 {
@@ -24,7 +24,7 @@ class ExpireStories extends Command
         foreach ($expired as $story) {
             // delete media file (optional)
             if (!empty($story->media)) {
-                Storage::disk('public')->delete($story->media);
+                MediaStorage::delete($story->media);
             }
 
             $story->update(['deleted_at' => $now]);

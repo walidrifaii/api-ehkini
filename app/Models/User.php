@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
-use Illuminate\Support\Facades\Storage;
+use App\Support\MediaStorage;
 use Carbon\Carbon;
 
 class User extends Authenticatable
@@ -74,7 +74,7 @@ class User extends Authenticatable
             return null;
         }
 
-        return Storage::disk('public')->url(ltrim($this->profile_image, '/'));
+        return MediaStorage::url($this->profile_image);
     }
 
     /**

@@ -3,7 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Storage;
+use App\Support\MediaStorage;
 
 class Post extends Model
 {
@@ -35,6 +35,6 @@ class Post extends Model
             return null;
         }
 
-        return Storage::disk('public')->url(ltrim($this->image, '/'));
+        return MediaStorage::url($this->image);
     }
 }

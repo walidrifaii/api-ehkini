@@ -198,41 +198,82 @@ namespace App\OpenApi\V2\Paths;
  *     path="/api/v2/profile/update",
  *     tags={"Auth"},
  *     summary="Update profile",
+ *     description="Update bio, birthday, location (text), name, gender, country, interests, or profile photo. All fields are optional.
+
+**Validation rules**
+| Field | Rule |
+|-------|------|
+| date_of_birth | Valid date; user must be **at least 18** years old |
+| bio / about_me | Max **2000** characters |
+| location | Free text, max **255** characters |
+| profile_image | Multipart only: JPG, JPEG, PNG, WEBP; max **2 MB (2048 KB)** |
+
+Optional header `X-App-Language: en` or `ar` (or `?lang=ar`) for localized validation messages.",
  *     security={{"sanctum":{}}},
  *     @OA\RequestBody(
  *         @OA\MediaType(
  *             mediaType="application/json",
- *             @OA\Schema(
- *                 @OA\Property(property="country_id", type="integer", example=1),
- *                 @OA\Property(property="first_name", type="string"),
- *                 @OA\Property(property="last_name", type="string"),
- *                 @OA\Property(property="date_of_birth", type="string", format="date", example="1995-06-15"),
- *                 @OA\Property(property="location", type="string", example="Beirut, Lebanon"),
- *                 @OA\Property(property="bio", type="string", description="Alias for about_me", example="Hello, I am ..."),
- *                 @OA\Property(property="about_me", type="string", description="Profile bio"),
- *                 @OA\Property(property="gender", type="string", enum={"male","female"}),
- *                 @OA\Property(property="occupation", type="string"),
- *                 @OA\Property(property="education", type="string"),
- *                 @OA\Property(property="interests", type="array", @OA\Items(type="integer"))
- *             )
+ *             @OA\Schema(ref="#/components/schemas/ProfileUpdateJsonRequest")
  *         ),
  *         @OA\MediaType(
  *             mediaType="multipart/form-data",
  *             @OA\Schema(
- *                 @OA\Property(property="country_id", type="integer"),
- *                 @OA\Property(property="first_name", type="string"),
- *                 @OA\Property(property="last_name", type="string"),
- *                 @OA\Property(property="date_of_birth", type="string", format="date"),
- *                 @OA\Property(property="location", type="string"),
- *                 @OA\Property(property="bio", type="string"),
- *                 @OA\Property(property="about_me", type="string"),
- *                 @OA\Property(property="profile_image", type="string", format="binary", description="Max 2 MB (2048 KB). JPG, JPEG, PNG, or WEBP."),
- *                 @OA\Property(property="gender", type="string", enum={"male","female"}),
- *                 @OA\Property(property="interests", type="array", @OA\Items(type="integer"))
+ *                 allOf={@OA\Schema(ref="#/components/schemas/ProfileUpdateJsonRequest")},
+ *                 @OA\Property(
+ *                     property="profile_image",
+ *                     type="string",
+ *                     format="binary",
+ *                     description="Profile photo. Max 2 MB (2048 KB). Allowed: JPG, JPEG, PNG, WEBP."
+ *                 )
  *             )
  *         )
  *     ),
- *     @OA\Response(response=200, description="Profile updated")
+ *     @OA\Response(response=200, description="Profile updated successfully", @OA\JsonContent(ref="#/components/schemas/ProfileUpdateResponse")),
+ *     @OA\Response(response=401, description="Unauthenticated", @OA\JsonContent(ref="#/components/schemas/MessageResponse")),
+ *     @OA\Response(response=403, description="Account deactivated", @OA\JsonContent(ref="#/components/schemas/MessageResponse")),
+ *     @OA\Response(
+ *         response=422,
+ *         description="Validation error (e.g. under 18, image too large, invalid image type)",
+ *         @OA\JsonContent(
+ *             ref="#/components/schemas/ValidationError",
+ *             @OA\Examples(
+ *                 example="date_of_birth_under_18",
+ *                 summary="Age under 18",
+ *                 value={
+ *                     "message": "The given data was invalid.",
+ *                     "errors": {
+ *                         "date_of_birth": {
+ *                             "You must be at least 18 years old to use this service."
+ *                         }
+ *                     }
+ *                 }
+ *             ),
+ *             @OA\Examples(
+ *                 example="profile_image_too_large",
+ *                 summary="Profile image exceeds max size",
+ *                 value={
+ *                     "message": "The given data was invalid.",
+ *                     "errors": {
+ *                         "profile_image": {
+ *                             "Profile image is too large. Maximum allowed size is 2 MB (2048 KB)."
+ *                         }
+ *                     }
+ *                 }
+ *             ),
+ *             @OA\Examples(
+ *                 example="profile_image_invalid_type",
+ *                 summary="Invalid profile image format",
+ *                 value={
+ *                     "message": "The given data was invalid.",
+ *                     "errors": {
+ *                         "profile_image": {
+ *                             "Profile image must be JPG, JPEG, PNG, or WEBP."
+ *                         }
+ *                     }
+ *                 }
+ *             )
+ *         )
+ *     )
  * )
  *
  * @OA\Post(

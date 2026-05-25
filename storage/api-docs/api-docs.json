@@ -566,47 +566,112 @@
                     "Auth"
                 ],
                 "summary": "Update profile",
+                "description": "Update bio, birthday, location (text), name, gender, country, interests, or profile photo. All fields are optional.\n\n**Validation rules**\n| Field | Rule |\n|-------|------|\n| date_of_birth | Valid date; user must be **at least 18** years old |\n| bio / about_me | Max **2000** characters |\n| location | Free text, max **255** characters |\n| profile_image | Multipart only: JPG, JPEG, PNG, WEBP; max **2 MB (2048 KB)** |\n\nOptional header `X-App-Language: en` or `ar` (or `?lang=ar`) for localized validation messages.",
                 "operationId": "b9c2b3fd6be2f67f0e7d0e34d61e58ec",
                 "requestBody": {
                     "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ProfileUpdateJsonRequest"
+                            }
+                        },
                         "multipart/form-data": {
                             "schema": {
-                                "properties": {
-                                    "country_id": {
-                                        "type": "integer"
+                                "type": "object",
+                                "allOf": [
+                                    {
+                                        "$ref": "#/components/schemas/ProfileUpdateJsonRequest"
                                     },
-                                    "first_name": {
-                                        "type": "string"
-                                    },
-                                    "last_name": {
-                                        "type": "string"
-                                    },
-                                    "profile_image": {
-                                        "type": "string",
-                                        "format": "binary"
-                                    },
-                                    "gender": {
-                                        "type": "string",
-                                        "enum": [
-                                            "male",
-                                            "female"
-                                        ]
-                                    },
-                                    "interests": {
-                                        "type": "array",
-                                        "items": {
-                                            "type": "integer"
-                                        }
+                                    {
+                                        "properties": {
+                                            "profile_image": {
+                                                "description": "Profile photo. Max 2 MB (2048 KB). Allowed: JPG, JPEG, PNG, WEBP.",
+                                                "type": "string",
+                                                "format": "binary"
+                                            }
+                                        },
+                                        "type": "object"
                                     }
-                                },
-                                "type": "object"
+                                ]
                             }
                         }
                     }
                 },
                 "responses": {
                     "200": {
-                        "description": "Profile updated"
+                        "description": "Profile updated successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProfileUpdateResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MessageResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Account deactivated",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MessageResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error (e.g. under 18, image too large, invalid image type)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ValidationError"
+                                },
+                                "examples": {
+                                    "date_of_birth_under_18": {
+                                        "summary": "Age under 18",
+                                        "value": {
+                                            "message": "The given data was invalid.",
+                                            "errors": {
+                                                "date_of_birth": [
+                                                    "You must be at least 18 years old to use this service."
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "profile_image_too_large": {
+                                        "summary": "Profile image exceeds max size",
+                                        "value": {
+                                            "message": "The given data was invalid.",
+                                            "errors": {
+                                                "profile_image": [
+                                                    "Profile image is too large. Maximum allowed size is 2 MB (2048 KB)."
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "profile_image_invalid_type": {
+                                        "summary": "Invalid profile image format",
+                                        "value": {
+                                            "message": "The given data was invalid.",
+                                            "errors": {
+                                                "profile_image": [
+                                                    "Profile image must be JPG, JPEG, PNG, or WEBP."
+                                                ]
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 },
                 "security": [
@@ -2557,6 +2622,123 @@
                         "example": "1|abc..."
                     },
                     "user": {
+                        "type": "object"
+                    }
+                },
+                "type": "object"
+            },
+            "ProfileUpdateJsonRequest": {
+                "description": "All fields optional. Send only fields you want to update.",
+                "properties": {
+                    "country_id": {
+                        "type": "integer",
+                        "example": 1,
+                        "nullable": true
+                    },
+                    "first_name": {
+                        "type": "string",
+                        "maxLength": 100
+                    },
+                    "last_name": {
+                        "type": "string",
+                        "maxLength": 100
+                    },
+                    "date_of_birth": {
+                        "description": "Must be at least 18 years ago (YYYY-MM-DD).",
+                        "type": "string",
+                        "format": "date",
+                        "example": "1995-06-15"
+                    },
+                    "location": {
+                        "description": "Free text location.",
+                        "type": "string",
+                        "maxLength": 255,
+                        "example": "Beirut, Lebanon"
+                    },
+                    "bio": {
+                        "description": "Alias for about_me (profile bio).",
+                        "type": "string",
+                        "maxLength": 2000
+                    },
+                    "about_me": {
+                        "description": "Profile bio (same as bio).",
+                        "type": "string",
+                        "maxLength": 2000
+                    },
+                    "gender": {
+                        "type": "string",
+                        "enum": [
+                            "male",
+                            "female"
+                        ]
+                    },
+                    "occupation": {
+                        "type": "string",
+                        "maxLength": 150
+                    },
+                    "education": {
+                        "type": "string",
+                        "maxLength": 150
+                    },
+                    "interests": {
+                        "description": "Interest IDs from interests table.",
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        }
+                    }
+                },
+                "type": "object"
+            },
+            "ProfileUpdateResponse": {
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "example": "Profile updated successfully."
+                    },
+                    "user": {
+                        "properties": {
+                            "id": {
+                                "type": "integer",
+                                "example": 1
+                            },
+                            "first_name": {
+                                "type": "string"
+                            },
+                            "last_name": {
+                                "type": "string"
+                            },
+                            "date_of_birth": {
+                                "type": "string",
+                                "format": "date",
+                                "nullable": true
+                            },
+                            "age": {
+                                "type": "integer",
+                                "nullable": true
+                            },
+                            "location": {
+                                "type": "string",
+                                "nullable": true
+                            },
+                            "about_me": {
+                                "type": "string",
+                                "nullable": true
+                            },
+                            "bio": {
+                                "description": "Same value as about_me.",
+                                "type": "string",
+                                "nullable": true
+                            },
+                            "profile_image_url": {
+                                "type": "string",
+                                "nullable": true
+                            },
+                            "country_id": {
+                                "type": "integer",
+                                "nullable": true
+                            }
+                        },
                         "type": "object"
                     }
                 },

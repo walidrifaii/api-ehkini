@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Dictionary;
+use App\Support\ApiLocale;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class LanguageController extends Controller
 {
@@ -14,8 +16,8 @@ class LanguageController extends Controller
      */
     public function dictionary(Request $request)
     {
-        $lang = strtolower((string) $request->query('lang', 'en'));
-        $lang = in_array($lang, ['en', 'ar'], true) ? $lang : 'en';
+        $lang = ApiLocale::normalize((string) $request->query('lang', ApiLocale::DEFAULT));
+        app()->setLocale($lang);
 
         $items = Dictionary::query()
             ->orderBy('id')
@@ -44,41 +46,32 @@ class LanguageController extends Controller
 
     /**
      * POST /api/v1/language/change
-     * body: { "language": "en" } or { "language": "ar" }
+     * Validates language code only (stored on the mobile app, not in DB).
+     * Prefer header X-App-Language: ar on every API call.
      */
     public function changeLanguage(Request $request)
     {
-        $user = $request->user();
-        if (! $user) {
-            return response()->json(['message' => 'Unauthenticated.'], 401);
-        }
-
         $data = $request->validate([
-            'language' => ['required', 'in:en,ar'],
+            'language' => ['required', Rule::in(ApiLocale::supported())],
         ]);
 
-        $user->update([
-            'language' => $data['language'],
-        ]);
+        $language = ApiLocale::normalize($data['language']);
+        app()->setLocale($language);
 
         return response()->json([
-            'message' => 'Language updated successfully.',
-            'language' => $user->language,
+            'message' => api_trans('language_updated'),
+            'language' => $language,
         ]);
     }
 
     /**
      * GET /api/v1/language/current
+     * Returns locale resolved from this request (headers / ?lang=), not from database.
      */
     public function currentLanguage(Request $request)
     {
-        $user = $request->user();
-        if (! $user) {
-            return response()->json(['message' => 'Unauthenticated.'], 401);
-        }
-
         return response()->json([
-            'language' => $user->language ?? 'en',
+            'language' => ApiLocale::resolve($request),
         ]);
     }
 }

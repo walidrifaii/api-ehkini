@@ -1,0 +1,128 @@
+<?php
+
+/**
+ * API response messages (English). Keys are stable; use api_trans('key') or English text + middleware.
+ * Add lang/{locale}/api.php and APP_LOCALES to support more languages.
+ */
+return [
+    'unauthenticated' => 'Unauthenticated.',
+    'the_given_data_was_invalid' => 'The given data was invalid.',
+
+    'language_updated' => 'Language updated successfully.',
+
+    'register_failed' => 'Register failed.',
+    'account_created_successfully' => 'Account created successfully.',
+    'phone_number_not_registered' => 'Phone number not registered.',
+    'must_be_18' => 'You must be at least 18 years old to use this service.',
+    'phone_number_exists' => 'Phone number exists.',
+    'invalid_credentials' => 'Invalid credentials.',
+    'account_deleted' => 'This account is Deleted.',
+    'login_successful' => 'Login successful.',
+    'account_deactivated' => 'This account is deactivated.',
+    'update_profile_failed' => 'Update profile failed.',
+    'profile_updated_successfully' => 'Profile updated successfully.',
+    'no_profile_image_to_delete' => 'No profile image to delete.',
+    'failed_to_delete_profile_image' => 'Failed to delete profile image.',
+    'profile_image_deleted_successfully' => 'Profile image deleted successfully.',
+    'failed_to_delete_account' => 'Failed to Deleted account.',
+    'account_deleted_successfully' => 'Account Deleted successfully.',
+    'logged_out_successfully' => 'Logged out successfully.',
+    'if_phone_exists_we_sent_code' => 'If the phone exists, we sent a code.',
+    'failed_to_send_otp' => 'Failed to send OTP.',
+    'otp_sent' => 'OTP sent.',
+    'invalid_otp' => 'Invalid OTP.',
+    'otp_verified' => 'OTP verified.',
+    'invalid_verification_token' => 'Invalid verification token.',
+    'user_not_found' => 'User not found.',
+    'password_updated' => 'Password updated.',
+    'phone_already_exists' => 'Phone already exists.',
+    'phone_not_verified' => 'Phone not verified.',
+    'failed_to_send_otp_to_new_phone' => 'Failed to send OTP to new phone.',
+    'otp_sent_to_new_phone' => 'OTP sent to new phone.',
+    'phone_updated_successfully' => 'Phone updated successfully.',
+    'current_password_incorrect' => 'Current password is incorrect.',
+    'new_password_must_differ' => 'New password must be different from current password.',
+    'password_updated_successfully' => 'Password updated successfully.',
+
+    'upload_failed' => 'Upload failed.',
+    'video_too_long' => 'Video is too long. Max 30 seconds.',
+    'failed_to_validate_video_duration' => 'Failed to validate video duration. Contact support.',
+    'story_uploaded_successfully' => 'Story uploaded successfully.',
+    'story_expired_or_deleted' => 'Story expired or deleted.',
+    'owner_view_ignored' => 'Owner view ignored.',
+    'failed_to_mark_view' => 'Failed to mark view.',
+    'viewed' => 'Viewed.',
+    'not_allowed' => 'Not allowed.',
+    'story_not_found' => 'Story not found.',
+    'cannot_report_own_story' => 'You cannot report your own story.',
+    'already_reported_story' => 'You have already reported this story.',
+    'report_submitted' => 'Report submitted.',
+    'failed_to_delete_story' => 'Failed to delete story.',
+    'story_deleted_successfully' => 'Story deleted successfully.',
+
+    'post_created_successfully' => 'Post created successfully.',
+    'post_deleted_successfully' => 'Post deleted successfully.',
+    'cannot_report_own_post' => 'You cannot report your own post.',
+    'already_reported_post' => 'You have already reported this post.',
+
+    'cannot_send_gift_to_self' => 'You cannot send gift to yourself.',
+    'not_found' => 'Not found.',
+    'failed_to_send_gift' => 'Failed to send gift.',
+    'gift_sent_successfully' => 'Gift sent successfully.',
+
+    'cannot_add_yourself' => 'You cannot add yourself.',
+    'request_already_exists' => 'Request already exists.',
+    'request_sent' => 'Request sent.',
+    'request_already_handled' => 'Request already handled.',
+    'done' => 'Done.',
+    'invalid_receiver' => 'Invalid receiver.',
+    'no_pending_request_found' => 'No pending request found.',
+    'failed_to_cancel_request' => 'Failed to cancel request.',
+    'friend_request_cancelled_successfully' => 'Friend request cancelled successfully.',
+    'invalid_user' => 'Invalid user.',
+    'no_relationship_found' => 'No relationship found.',
+    'users_are_not_friends' => 'Users are not friends.',
+    'failed_to_remove_friend' => 'Failed to remove friend.',
+    'friend_removed_successfully' => 'Friend removed successfully.',
+
+    'provide_search_filters' => 'Provide a name/keyword or at least one filter (gender, country, age, interests).',
+    'saved_search_cleared' => 'Saved search cleared.',
+    'recorded' => 'Recorded.',
+    'no_saved_search_data' => 'No saved search data.',
+    'not_in_recent_list' => 'Not in recent list.',
+    'removed_from_recent' => 'Removed from recent.',
+
+    'cannot_block_yourself' => 'You cannot block yourself.',
+    'user_blocked_successfully' => 'User blocked successfully.',
+    'failed_to_block_user' => 'Failed to block user.',
+    'user_unblocked_successfully' => 'User unblocked successfully.',
+    'cannot_report_yourself' => 'You cannot report yourself.',
+    'report_submitted_successfully' => 'Report submitted successfully.',
+
+    'balance_added_successfully' => 'Balance added successfully.',
+    'failed_to_add_balance' => 'Failed to add balance.',
+
+    'updated' => 'Updated.',
+    'notification_deleted_successfully' => 'Notification deleted successfully.',
+
+    'page_not_found' => 'Page not found.',
+
+    'languages_fetched_successfully' => 'Languages fetched successfully',
+    'language_not_found_or_inactive' => 'Language not found or inactive',
+    'translations_fetched_successfully' => 'Translations fetched successfully',
+
+    'missing_agora_env' => 'Missing Agora env (AGORA_APP_ID / AGORA_APP_CERTIFICATE)',
+    'token_generation_failed' => 'Token generation failed',
+    'token_service_error' => 'Token service error.',
+    'failed_to_generate_token' => 'Failed to generate token.',
+
+    'receiver_not_found' => 'Receiver not found',
+    'receiver_has_no_fcm_token' => 'Receiver has no fcm_token',
+    'caller_receiver_not_found' => 'Caller/Receiver not found',
+    'users_not_found' => 'Users not found',
+    'target_user_has_no_fcm_token' => 'Target user has no fcm_token',
+
+    'test_push_finished' => 'Test push finished (HTTP v1).',
+
+    'new_phone_must_differ' => 'New phone must be different from current phone.',
+];

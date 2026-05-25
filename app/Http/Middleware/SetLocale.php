@@ -2,31 +2,24 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\ApiLocale;
 use Closure;
-use App\Models\Language;
+use Illuminate\Http\Request;
 
 class SetLocale
 {
-    public function handle($request, Closure $next)
+    public function handle(Request $request, Closure $next)
     {
-        $locale = session('locale');
+        $locale = ApiLocale::resolve($request);
+        app()->setLocale($locale);
+        $request->attributes->set('locale', $locale);
 
-        if (!$locale) {
-            $defaultLanguage = Language::where('is_default', 1)
-                ->where('is_active', 1)
-                ->first();
+        $response = $next($request);
 
-            $locale = $defaultLanguage?->code ?? 'en';
+        if (method_exists($response, 'header')) {
+            $response->header('Content-Language', $locale);
         }
 
-        app()->setLocale($locale);
-
-        $currentLanguage = Language::where('code', $locale)
-            ->where('is_active', 1)
-            ->first();
-
-        view()->share('currentLanguage', $currentLanguage);
-
-        return $next($request);
+        return $response;
     }
 }

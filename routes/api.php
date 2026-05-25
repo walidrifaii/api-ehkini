@@ -121,6 +121,8 @@ Route::post('/media/video/upload', [$controllers['media'], 'uploadVideo']);
 
         Route::get('/dictionary', [$controllers['language'], 'dictionary']);
         Route::get('/languages', [$controllers['language'], 'languages']);
+        Route::post('/language/change', [$controllers['language'], 'changeLanguage']);
+        Route::get('/language/current', [$controllers['language'], 'currentLanguage']);
 
            Route::post('/forgot-password/send-otp', [$controllers['auth'], 'forgotPasswordSendOtp']);
 Route::post('/forgot-password/verify-otp', [$controllers['auth'], 'verifyForgotPasswordOtp']);
@@ -145,10 +147,6 @@ Route::post('/forgot-password/verify-otp', [$controllers['auth'], 'verifyForgotP
 Route::post('/profile/password/send-otp', [$controllers['auth'], 'sendPasswordOtp']);
 Route::post('/profile/password/update', [$controllers['auth'], 'updatePasswordWithOtp']);
    
-        Route::post('/language/change', [$controllers['language'], 'changeLanguage']);
-        Route::get('/language/current', [$controllers['language'], 'currentLanguage']);
-
-
         Route::post('/posts/{post}/report', [$controllers['post'], 'report']);
 
         // Posts

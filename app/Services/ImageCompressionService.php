@@ -69,17 +69,7 @@ class ImageCompressionService
                 return $this->storeFallback($file, $directory, $disk);
             }
 
-            if (MediaStorage::usesImageKit()) {
-                MediaStorage::putBinary($relativePath, $binary);
-
-                return $relativePath;
-            }
-
-            if (! Storage::disk($disk)->put($relativePath, $binary)) {
-                return $this->storeFallback($file, $directory, $disk);
-            }
-
-            return $relativePath;
+            return MediaStorage::putBinary($relativePath, $binary);
         } catch (Throwable) {
             return $this->storeFallback($file, $directory, $disk);
         }
@@ -87,12 +77,14 @@ class ImageCompressionService
 
     private function storeFallback(UploadedFile $file, string $directory, string $disk): string
     {
-        if (MediaStorage::usesImageKit()) {
+        if (MediaStorage::usesImageKit() || MediaStorage::storeFullUrlInDb()) {
             $filename = (string) Str::uuid().'.'.$file->getClientOriginalExtension();
 
             return MediaStorage::storeUploadedFile($file, $directory, $filename);
         }
 
-        return $file->store($directory, $disk);
+        $path = $file->store($directory, $disk);
+
+        return MediaStorage::forDatabase($path);
     }
 }

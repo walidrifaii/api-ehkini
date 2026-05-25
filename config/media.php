@@ -29,6 +29,25 @@ return [
     */
     'disk' => env('MEDIA_DISK', 'public'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Full URLs in database
+    |--------------------------------------------------------------------------
+    |
+    | When true, new uploads save https://... in DB (not only profiles/xxx.jpg).
+    | Backfill old rows: php artisan media:backfill-full-urls
+    |
+    */
+    'store_full_url_in_db' => filter_var(env('MEDIA_STORE_FULL_URL_IN_DB', true), FILTER_VALIDATE_BOOLEAN),
+
+    /*
+    | Old amcserver base for migrating relative paths already on disk.
+    */
+    'legacy_base_url' => rtrim(
+        env('MEDIA_LEGACY_BASE_URL', 'https://amcserver.com/app/taaruf/storage/app/public'),
+        '/'
+    ),
+
     'imagekit' => [
         'public_key' => env('IMAGEKIT_PUBLIC_KEY'),
         'private_key' => env('IMAGEKIT_PRIVATE_KEY'),

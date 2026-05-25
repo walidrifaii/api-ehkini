@@ -71,6 +71,10 @@ class ImageKitService
             throw new \RuntimeException('ImageKit upload returned no file path.');
         }
 
+        if (config('media.store_full_url_in_db') && ! empty($response->result->url)) {
+            return (string) $response->result->url;
+        }
+
         return ltrim((string) $filePath, '/');
     }
 

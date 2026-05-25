@@ -24,11 +24,7 @@ class AuthController extends \App\Http\Controllers\Api\V1\AuthController
             'country_code' => ['required', 'string', 'max:6'],
             'phone' => ['required', 'string', 'max:30'],
             'date_of_birth' => ['required', 'date', 'before_or_equal:' . $minAgeDate],
-        ], [
-            'date_of_birth.required' => 'Date of birth is required to verify you are at least 18 years old.',
-            'date_of_birth.date' => 'Please enter a valid date of birth.',
-            'date_of_birth.before_or_equal' => 'You must be at least 18 years old to create an account.',
-        ]);
+        ], $this->dateOfBirthValidationMessages(required: true));
 
         $countryCode = $this->normalizeCountryCodeV2($data['country_code']);
         $phone = $this->normalizePhoneV2($data['phone']);
@@ -160,11 +156,7 @@ class AuthController extends \App\Http\Controllers\Api\V1\AuthController
             'platform' => ['nullable', 'in:android,ios,web'],
             'interests' => ['nullable', 'array'],
             'interests.*' => ['integer', 'exists:interests,id'],
-        ], [
-            'date_of_birth.required' => 'Date of birth is required to verify you are at least 18 years old.',
-            'date_of_birth.date' => 'Please enter a valid date of birth.',
-            'date_of_birth.before_or_equal' => 'You must be at least 18 years old to create an account.',
-        ]);
+        ], $this->dateOfBirthValidationMessages(required: true));
 
         $cc = $this->normalizeCountryCodeV2($data['country_code']);
         $ph = $this->normalizePhoneV2($data['phone']);

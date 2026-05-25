@@ -226,7 +226,7 @@ namespace App\OpenApi\V2\Paths;
  *                 @OA\Property(property="location", type="string"),
  *                 @OA\Property(property="bio", type="string"),
  *                 @OA\Property(property="about_me", type="string"),
- *                 @OA\Property(property="profile_image", type="string", format="binary"),
+ *                 @OA\Property(property="profile_image", type="string", format="binary", description="Max 2 MB (2048 KB). JPG, JPEG, PNG, or WEBP."),
  *                 @OA\Property(property="gender", type="string", enum={"male","female"}),
  *                 @OA\Property(property="interests", type="array", @OA\Items(type="integer"))
  *             )

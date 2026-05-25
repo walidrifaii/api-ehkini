@@ -18,6 +18,9 @@ use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
+    /** Laravel `max` rule for uploads: size in kilobytes (2048 KB = 2 MB). */
+    public const PROFILE_IMAGE_MAX_KB = 2048;
+
     /**
      * POST /api/v1/register
      * Legacy direct register (without OTP). Keep if you still need backward compatibility.
@@ -43,18 +46,17 @@ class AuthController extends Controller
             'education'     => ['nullable', 'string', 'max:150'],
             'about_me'      => ['nullable', 'string', 'max:2000'],
 
-            'profile_image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'profile_image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:'.self::PROFILE_IMAGE_MAX_KB],
 
             'fcm_token'     => ['nullable', 'string', 'max:255'],
             'platform'      => ['nullable', 'in:android,ios,web'],
 
             'interests'     => ['nullable', 'array'],
             'interests.*'   => ['integer', 'exists:interests,id'],
-        ], [
-            'date_of_birth.required' => 'Date of birth is required to verify you are at least 18 years old.',
-            'date_of_birth.date' => 'Please enter a valid date of birth.',
-            'date_of_birth.before_or_equal' => 'You must be at least 18 years old to create an account.',
-        ]);
+        ], array_merge(
+            $this->dateOfBirthValidationMessages(required: true),
+            $this->profileImageValidationMessages()
+        ));
 
         $data['country_code'] = $this->normalizeCountryCode($data['country_code']);
         $data['phone'] = $this->normalizePhone($data['phone']);
@@ -156,10 +158,7 @@ class AuthController extends Controller
             'country_code'  => ['required', 'string', 'max:6'],
             'phone'         => ['required', 'string', 'max:30'],
             'date_of_birth' => ['nullable', 'date', 'before_or_equal:' . $minAgeDate],
-        ], [
-            'date_of_birth.date' => 'Please enter a valid date of birth.',
-            'date_of_birth.before_or_equal' => 'You must be at least 18 years old to create an account.',
-        ]);
+        ], $this->dateOfBirthValidationMessages());
 
         $countryCode = $this->normalizeCountryCode($data['country_code']);
         $phone = $this->normalizePhone($data['phone']);
@@ -426,7 +425,7 @@ class AuthController extends Controller
 
             'country_id'    => ['nullable', 'integer', 'exists:countries,id'],
 
-            'profile_image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'profile_image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:'.self::PROFILE_IMAGE_MAX_KB],
 
             'interests'     => ['nullable', 'array'],
             'interests.*'   => ['integer', 'exists:interests,id'],
@@ -438,10 +437,55 @@ class AuthController extends Controller
      */
     protected function profileUpdateMessages(): array
     {
-        return [
-            'date_of_birth.before_or_equal' => 'You must be at least 18 years old.',
-            'location.string' => 'Location must be text.',
+        return array_merge(
+            $this->dateOfBirthValidationMessages(),
+            $this->profileImageValidationMessages(),
+            [
+                'location.string' => api_trans('location_must_be_text'),
+            ]
+        );
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected function dateOfBirthValidationMessages(bool $required = false): array
+    {
+        $messages = [
+            'date_of_birth.date' => api_trans('date_of_birth_invalid'),
+            'date_of_birth.before_or_equal' => api_trans($required ? 'must_be_18_to_register' : 'must_be_18'),
         ];
+
+        if ($required) {
+            $messages['date_of_birth.required'] = api_trans('date_of_birth_required_for_age');
+        }
+
+        return $messages;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected function profileImageValidationMessages(): array
+    {
+        $size = [
+            'max_kb' => (string) self::PROFILE_IMAGE_MAX_KB,
+            'max_mb' => $this->profileImageMaxMbLabel(),
+        ];
+
+        return [
+            'profile_image.image' => api_trans('profile_image_must_be_image'),
+            'profile_image.mimes' => api_trans('profile_image_invalid_type'),
+            'profile_image.max' => api_trans('profile_image_max_size', $size),
+            'profile_image.uploaded' => api_trans('profile_image_max_size', $size),
+        ];
+    }
+
+    protected function profileImageMaxMbLabel(): string
+    {
+        $mb = self::PROFILE_IMAGE_MAX_KB / 1024;
+
+        return rtrim(rtrim(number_format($mb, 1), '0'), '.') ?: (string) $mb;
     }
 
     /**

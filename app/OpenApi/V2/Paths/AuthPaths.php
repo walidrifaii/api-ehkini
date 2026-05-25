@@ -201,11 +201,31 @@ namespace App\OpenApi\V2\Paths;
  *     security={{"sanctum":{}}},
  *     @OA\RequestBody(
  *         @OA\MediaType(
+ *             mediaType="application/json",
+ *             @OA\Schema(
+ *                 @OA\Property(property="country_id", type="integer", example=1),
+ *                 @OA\Property(property="first_name", type="string"),
+ *                 @OA\Property(property="last_name", type="string"),
+ *                 @OA\Property(property="date_of_birth", type="string", format="date", example="1995-06-15"),
+ *                 @OA\Property(property="location", type="string", example="Beirut, Lebanon"),
+ *                 @OA\Property(property="bio", type="string", description="Alias for about_me", example="Hello, I am ..."),
+ *                 @OA\Property(property="about_me", type="string", description="Profile bio"),
+ *                 @OA\Property(property="gender", type="string", enum={"male","female"}),
+ *                 @OA\Property(property="occupation", type="string"),
+ *                 @OA\Property(property="education", type="string"),
+ *                 @OA\Property(property="interests", type="array", @OA\Items(type="integer"))
+ *             )
+ *         ),
+ *         @OA\MediaType(
  *             mediaType="multipart/form-data",
  *             @OA\Schema(
  *                 @OA\Property(property="country_id", type="integer"),
  *                 @OA\Property(property="first_name", type="string"),
  *                 @OA\Property(property="last_name", type="string"),
+ *                 @OA\Property(property="date_of_birth", type="string", format="date"),
+ *                 @OA\Property(property="location", type="string"),
+ *                 @OA\Property(property="bio", type="string"),
+ *                 @OA\Property(property="about_me", type="string"),
  *                 @OA\Property(property="profile_image", type="string", format="binary"),
  *                 @OA\Property(property="gender", type="string", enum={"male","female"}),
  *                 @OA\Property(property="interests", type="array", @OA\Items(type="integer"))

@@ -315,6 +315,9 @@ class AuthController extends Controller
 
     /**
      * POST /api/v1/profile/update
+     * POST /api/v2/profile/update
+     *
+     * JSON or multipart. Bio: send "bio" or "about_me". Location: free text.
      */
     public function updateProfile(Request $request)
     {
@@ -327,23 +330,12 @@ class AuthController extends Controller
             return response()->json(['message' => 'This account is deactivated.'], 403);
         }
 
-        $data = $request->validate([
-            'first_name'    => ['nullable', 'string', 'max:100'],
-            'last_name'     => ['nullable', 'string', 'max:100'],
+        $this->prepareProfileUpdateRequest($request);
 
-            'date_of_birth' => ['nullable', 'date'],
-            'gender'        => ['nullable', 'in:male,female'],
-
-            'location'      => ['nullable', 'string', 'max:255'],
-            'occupation'    => ['nullable', 'string', 'max:150'],
-            'education'     => ['nullable', 'string', 'max:150'],
-            'about_me'      => ['nullable', 'string', 'max:2000'],
-
-            'profile_image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
-
-            'interests'     => ['nullable', 'array'],
-            'interests.*'   => ['integer', 'exists:interests,id'],
-        ]);
+        $data = $request->validate(
+            $this->profileUpdateRules(),
+            $this->profileUpdateMessages()
+        );
 
         $newImagePath = null;
         $oldImagePath = $user->profile_image;
@@ -364,7 +356,7 @@ class AuthController extends Controller
                 $data['profile_image'] = $newImagePath;
             }
 
-            $updateFields = collect($data)->except(['interests'])->toArray();
+            $updateFields = collect($data)->except(['interests', 'bio'])->toArray();
             if (!empty($updateFields)) {
                 $user->update($updateFields);
             }
@@ -393,10 +385,63 @@ class AuthController extends Controller
 
         $user->refresh()->load('interests:id,name');
 
+        $userData = $user->toArray();
+        $userData['bio'] = $user->about_me;
+
         return response()->json([
             'message' => 'Profile updated successfully.',
-            'user'    => $user,
+            'user'    => $userData,
         ]);
+    }
+
+    /**
+     * Map mobile field names and accept JSON or form body.
+     */
+    protected function prepareProfileUpdateRequest(Request $request): void
+    {
+        if ($request->has('bio') && ! $request->has('about_me')) {
+            $request->merge(['about_me' => $request->input('bio')]);
+        }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function profileUpdateRules(): array
+    {
+        $minAgeDate = now()->subYears(18)->format('Y-m-d');
+
+        return [
+            'first_name'    => ['nullable', 'string', 'max:100'],
+            'last_name'     => ['nullable', 'string', 'max:100'],
+
+            'date_of_birth' => ['nullable', 'date', 'before_or_equal:'.$minAgeDate],
+            'gender'        => ['nullable', 'in:male,female'],
+
+            'location'      => ['nullable', 'string', 'max:255'],
+            'occupation'    => ['nullable', 'string', 'max:150'],
+            'education'     => ['nullable', 'string', 'max:150'],
+            'about_me'      => ['nullable', 'string', 'max:2000'],
+            'bio'           => ['nullable', 'string', 'max:2000'],
+
+            'country_id'    => ['nullable', 'integer', 'exists:countries,id'],
+
+            'profile_image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+
+            'interests'     => ['nullable', 'array'],
+            'interests.*'   => ['integer', 'exists:interests,id'],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected function profileUpdateMessages(): array
+    {
+        return [
+            'date_of_birth.before_or_equal' => 'You must be at least 18 years old.',
+            'location.string' => 'Location must be text.',
+        ];
     }
 
     /**

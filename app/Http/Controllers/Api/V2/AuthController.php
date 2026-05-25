@@ -229,24 +229,7 @@ class AuthController extends \App\Http\Controllers\Api\V1\AuthController
 
     public function updateProfile(Request $request)
     {
-        $data = $request->validate([
-            'country_id' => ['nullable', 'integer', 'exists:countries,id'],
-        ]);
-
-        if (array_key_exists('country_id', $data)) {
-            $user = $request->user();
-            if (! $user) {
-                return response()->json(['message' => 'Unauthenticated.'], 401);
-            }
-
-            if ((int) $user->is_active === 0) {
-                return response()->json(['message' => 'This account is deactivated.'], 403);
-            }
-
-            $user->update([
-                'country_id' => $data['country_id'],
-            ]);
-        }
+        $this->prepareProfileUpdateRequest($request);
 
         $response = parent::updateProfile($request);
 
@@ -272,7 +255,9 @@ class AuthController extends \App\Http\Controllers\Api\V1\AuthController
             return $response;
         }
 
-        $payload['user'] = $user->toArray();
+        $userData = $user->toArray();
+        $userData['bio'] = $user->about_me;
+        $payload['user'] = $userData;
 
         return response()->json($payload, $response->getStatusCode());
     }

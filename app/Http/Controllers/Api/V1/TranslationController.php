@@ -8,6 +8,7 @@ use App\Models\TranslationKey;
 use App\Support\ApiLocale;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class TranslationController extends Controller
 {
@@ -30,15 +31,16 @@ class TranslationController extends Controller
 
     /**
      * GET /api/v2/translations/{lang}
-     * {lang} sets response locale + which DB strings to load (en, ar, …).
+     *
+     * Strings come from the database only (translation_keys + translation_values).
+     * Add a language by inserting into `languages` and `translation_values` — no deploy needed.
      */
     public function index(Request $request, string $code): JsonResponse
     {
-        $locale = ApiLocale::normalize($code);
-        app()->setLocale($locale);
+        $requestedCode = $this->parseTranslationLangCode($code);
 
         $language = Language::query()
-            ->where('code', $locale)
+            ->where('code', $requestedCode)
             ->where('is_active', 1)
             ->first();
 
@@ -50,7 +52,10 @@ class TranslationController extends Controller
             ], 404);
         }
 
-        $translations = $this->fileApiMessages($locale);
+        $locale = $language->code;
+        app()->setLocale($locale);
+
+        $translations = [];
 
         $rows = TranslationKey::query()
             ->leftJoin('translation_values', function ($join) use ($language) {
@@ -66,12 +71,17 @@ class TranslationController extends Controller
             ->get();
 
         foreach ($rows as $row) {
-            $translations[$row->key] = $row->value ?? $row->key;
+            if ($row->key === null || $row->key === '') {
+                continue;
+            }
+            $translations[$row->key] = ($row->value !== null && $row->value !== '')
+                ? $row->value
+                : $row->key;
         }
 
         return response()->json([
             'success' => true,
-            'message' => api_trans('translations_fetched_successfully'),
+            'message' => $this->translationsFetchedMessage($locale),
             'data' => [
                 'language' => [
                     'id' => $language->id,
@@ -86,26 +96,20 @@ class TranslationController extends Controller
         ]);
     }
 
-    /**
-     * API response strings from lang/{locale}/api.php (login, errors, etc.).
-     *
-     * @return array<string, string>
-     */
-    private function fileApiMessages(string $locale): array
+    private function translationsFetchedMessage(string $locale): string
     {
-        $messages = trans('api', [], $locale);
-
-        if (! is_array($messages)) {
-            return [];
+        $line = trans('api.translations_fetched_successfully', [], $locale);
+        if ($line !== 'api.translations_fetched_successfully') {
+            return $line;
         }
 
-        $out = [];
-        foreach ($messages as $key => $value) {
-            if (is_string($value)) {
-                $out[$key] = $value;
-            }
-        }
+        return trans('api.translations_fetched_successfully', [], ApiLocale::DEFAULT);
+    }
 
-        return $out;
+    private function parseTranslationLangCode(string $code): string
+    {
+        $code = strtolower(trim($code));
+
+        return Str::before(Str::before($code, '_'), '-');
     }
 }

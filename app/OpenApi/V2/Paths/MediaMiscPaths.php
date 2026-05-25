@@ -70,8 +70,10 @@ namespace App\OpenApi\V2\Paths;
  *     path="/api/v2/translations/{lang}",
  *     tags={"App"},
  *     summary="Get translation strings",
- *     @OA\Parameter(name="lang", in="path", required=true, @OA\Schema(type="string", example="en")),
- *     @OA\Response(response=200, description="Translation key-value map")
+ *     description="Returns all strings from DB (`translation_keys` + `translation_values`) for the given language code. Add a language by inserting into `languages` (is_active=1) and translation rows — no code deploy required.",
+ *     @OA\Parameter(name="lang", in="path", required=true, @OA\Schema(type="string", example="fr"), description="Must match an active `languages.code` (e.g. en, ar, fr)"),
+ *     @OA\Response(response=200, description="Translation key-value map (mobile + api.* keys)"),
+ *     @OA\Response(response=404, description="Language not found or inactive", @OA\JsonContent(ref="#/components/schemas/MessageResponse"))
  * )
  *
  * @OA\Get(

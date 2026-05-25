@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\Language;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -22,7 +23,48 @@ class ApiLocale
         $locale = Str::before($locale, '_');
         $locale = Str::before($locale, '-');
 
-        return in_array($locale, self::supported(), true) ? $locale : self::default();
+        if ($locale === '') {
+            return self::default();
+        }
+
+        if (in_array($locale, self::supported(), true)) {
+            return $locale;
+        }
+
+        // Any active row in `languages` works without editing APP_LOCALES or lang files.
+        if (in_array($locale, self::activeLanguageCodes(), true)) {
+            return $locale;
+        }
+
+        return self::default();
+    }
+
+    /**
+     * Active language codes from DB (`languages.is_active = 1`).
+     *
+     * @return list<string>
+     */
+    public static function activeLanguageCodes(): array
+    {
+        static $codes = null;
+
+        if ($codes !== null) {
+            return $codes;
+        }
+
+        try {
+            $codes = Language::query()
+                ->where('is_active', 1)
+                ->pluck('code')
+                ->map(static fn ($code) => strtolower((string) $code))
+                ->unique()
+                ->values()
+                ->all();
+        } catch (\Throwable) {
+            $codes = [];
+        }
+
+        return $codes;
     }
 
     public static function default(): string

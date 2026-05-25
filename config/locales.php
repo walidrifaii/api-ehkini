@@ -7,8 +7,9 @@ return [
     | API locales
     |--------------------------------------------------------------------------
     |
-    | Default: English. Add codes to supported + lang/{code}/api.php to scale.
-    | Example: APP_LOCALES=en,ar,fr
+    | Default: English. Mobile/UI strings: add rows in DB (`languages`, `translation_values`).
+    | APP_LOCALES is optional for built-in lang/{code}/api.php API errors; any active
+    | `languages.code` is accepted automatically (e.g. fr without changing this file).
     |
     */
     'default' => env('APP_LOCALE', 'en'),

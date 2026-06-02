@@ -109,8 +109,12 @@ class RemoteUploadService
     private function publicDir(string $dir): string
     {
         $dir = trim($dir, '/');
+        $map = (array) config('media.remote.public_dirs', []);
 
-        return str_ends_with($dir, 's') ? $dir : $dir.'s';
+        // Map the singular category (e.g. "image" -> "images", "voice" -> "voice").
+        // Unknown / already-mapped segments pass through unchanged so the lookup
+        // stays idempotent when called on a previously built path.
+        return $map[$dir] ?? $dir;
     }
 
     public function delete(string $path): bool

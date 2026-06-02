@@ -66,6 +66,14 @@ return [
         'endpoint' => env('UPLOAD_ENDPOINT', 'https://st79068.ispot.cc/upload.php'),
         'token' => env('UPLOAD_API_TOKEN', 'YourSuperSecretToken2026!@#'),
         'public_base' => rtrim(env('UPLOAD_PUBLIC_BASE', 'https://st79068.ispot.cc'), '/'),
+        // Maps the singular category returned by the endpoint (path "image/x")
+        // to the folder it is publicly served from. Images/videos are served
+        // from a plural folder; voice is served from a singular folder.
+        'public_dirs' => [
+            'image' => 'images',
+            'video' => 'videos',
+            'voice' => 'voice',
+        ],
     ],
 
     'imagekit' => [

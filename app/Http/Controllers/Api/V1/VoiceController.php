@@ -16,21 +16,33 @@ class VoiceController extends Controller
      */
     public function upload(Request $request)
     {
+        // Accept any audio file; the upload server enforces the real type by
+        // content. Strict mimes:m4a often fails because PHP detects m4a as
+        // video/mp4 or application/octet-stream.
         $request->validate([
             'voice' => [
                 'required',
                 'file',
-                'mimes:m4a,aac,mp3,wav,ogg,opus',
                 'max:10240', // 10MB
             ],
         ]);
 
         $file = $request->file('voice');
 
-        // Generate clean unique name
-        $filename = Str::uuid()->toString() . '.' . $file->getClientOriginalExtension();
+        $extension = $file->getClientOriginalExtension()
+            ?: ($file->guessExtension() ?: 'm4a');
 
-        $path = MediaStorage::storeUploadedFile($file, 'voices', $filename);
+        $filename = Str::uuid()->toString() . '.' . $extension;
+
+        try {
+            $path = MediaStorage::storeUploadedFile($file, 'voices', $filename);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Voice upload failed.',
+                'error' => $e->getMessage(),
+            ], 422);
+        }
 
         $url = MediaStorage::url($path);
 

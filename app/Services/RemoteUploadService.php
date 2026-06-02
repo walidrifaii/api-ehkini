@@ -59,18 +59,21 @@ class RemoteUploadService
             ->attach('file', $contents, $fileName)
             ->post($endpoint, $form);
 
-        if (! $response->successful()) {
+        $json = $response->json();
+
+        if (! $response->successful() || ! ($json['success'] ?? false)) {
+            $remoteError = is_array($json) ? ($json['error'] ?? $json['message'] ?? null) : null;
             Log::error('Remote upload failed', [
                 'status' => $response->status(),
+                'fileName' => $fileName,
                 'body' => $response->body(),
             ]);
-            throw new \RuntimeException('Remote upload failed.');
+            throw new \RuntimeException($remoteError ?: 'Remote upload failed.');
         }
 
-        $json = $response->json();
         $path = $json['path'] ?? null;
 
-        if (! ($json['success'] ?? false) || ! $path) {
+        if (! $path) {
             Log::error('Remote upload returned unexpected payload', ['body' => $response->body()]);
             throw new \RuntimeException('Remote upload returned no file path.');
         }

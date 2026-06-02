@@ -65,7 +65,7 @@ return [
     'remote' => [
         'endpoint' => env('UPLOAD_ENDPOINT', 'https://st79068.ispot.cc/upload.php'),
         'token' => env('UPLOAD_API_TOKEN', 'YourSuperSecretToken2026!@#'),
-        'public_base' => rtrim(env('UPLOAD_PUBLIC_BASE', ''), '/'),
+        'public_base' => rtrim(env('UPLOAD_PUBLIC_BASE', 'https://st79068.ispot.cc'), '/'),
     ],
 
     'imagekit' => [

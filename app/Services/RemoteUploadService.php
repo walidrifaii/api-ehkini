@@ -75,15 +75,42 @@ class RemoteUploadService
             throw new \RuntimeException('Remote upload returned no file path.');
         }
 
-        return ltrim((string) $path, '/');
+        return $this->url(ltrim((string) $path, '/'));
     }
 
+    /**
+     * Build the public URL for a stored path.
+     *
+     * The endpoint returns a relative path whose first segment is the singular
+     * category (e.g. "image/<file>"), while files are publicly served from the
+     * pluralized folder (e.g. "/images/<file>"). This maps singular -> plural
+     * and is safe to call on already-plural paths.
+     */
     public function url(string $path): string
     {
         $path = ltrim($path, '/');
+
+        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+            return $path;
+        }
+
         $base = rtrim((string) (config('media.remote.public_base') ?: config('media.url')), '/');
 
+        $segments = explode('/', $path, 2);
+        if (count($segments) === 2) {
+            $dir = $this->publicDir($segments[0]);
+
+            return $base.'/'.$dir.'/'.$segments[1];
+        }
+
         return $base.'/'.$path;
+    }
+
+    private function publicDir(string $dir): string
+    {
+        $dir = trim($dir, '/');
+
+        return str_ends_with($dir, 's') ? $dir : $dir.'s';
     }
 
     public function delete(string $path): bool

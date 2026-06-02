@@ -77,7 +77,7 @@ class ImageCompressionService
 
     private function storeFallback(UploadedFile $file, string $directory, string $disk): string
     {
-        if (MediaStorage::usesImageKit() || MediaStorage::storeFullUrlInDb()) {
+        if (MediaStorage::usesImageKit() || MediaStorage::usesRemote() || MediaStorage::storeFullUrlInDb()) {
             $filename = (string) Str::uuid().'.'.$file->getClientOriginalExtension();
 
             return MediaStorage::storeUploadedFile($file, $directory, $filename);

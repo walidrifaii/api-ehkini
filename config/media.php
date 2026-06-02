@@ -13,7 +13,7 @@ return [
     |
     */
     'url' => rtrim(
-        env('MEDIA_URL', env('IMAGEKIT_URL_ENDPOINT', env('APP_URL', 'http://localhost').'/storage')),
+        env('MEDIA_URL', env('UPLOAD_PUBLIC_BASE', env('IMAGEKIT_URL_ENDPOINT', env('APP_URL', 'http://localhost').'/storage'))),
         '/'
     ),
 
@@ -22,12 +22,13 @@ return [
     | Where new files are written
     |--------------------------------------------------------------------------
     |
+    | remote   — remote upload.php endpoint (upload + delivery) [default]
     | imagekit — ImageKit.io CDN (upload + delivery)
     | ftp      — remote server via FTP
     | public   — storage/app/public on this API server
     |
     */
-    'disk' => env('MEDIA_DISK', 'public'),
+    'disk' => env('MEDIA_DISK', 'remote'),
 
     /*
     |--------------------------------------------------------------------------
@@ -47,6 +48,25 @@ return [
         env('MEDIA_LEGACY_BASE_URL', 'https://amcserver.com/app/taaruf/storage/app/public'),
         '/'
     ),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Remote upload endpoint (upload.php)
+    |--------------------------------------------------------------------------
+    |
+    | endpoint    — POST target that accepts multipart "file" and returns JSON
+    |               {"success":true,"path":"image/<name>.jpg",...}
+    | token       — bearer token sent as Authorization header and "token" field
+    | public_base — base URL where uploaded files are publicly served. The
+    |               endpoint returns a relative path (e.g. image/x.jpg), so set
+    |               this to the folder that serves them. Falls back to media.url.
+    |
+    */
+    'remote' => [
+        'endpoint' => env('UPLOAD_ENDPOINT', 'https://st79068.ispot.cc/upload.php'),
+        'token' => env('UPLOAD_API_TOKEN', 'YourSuperSecretToken2026!@#'),
+        'public_base' => rtrim(env('UPLOAD_PUBLIC_BASE', ''), '/'),
+    ],
 
     'imagekit' => [
         'public_key' => env('IMAGEKIT_PUBLIC_KEY'),

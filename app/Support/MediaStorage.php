@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Services\ImageKitService;
+use App\Services\RemoteUploadService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
@@ -26,6 +27,16 @@ class MediaStorage
     public static function usesImageKit(): bool
     {
         return config('media.disk') === 'imagekit' && self::imageKitConfigured();
+    }
+
+    public static function usesRemote(): bool
+    {
+        return config('media.disk') === 'remote' && self::remoteConfigured();
+    }
+
+    public static function remoteConfigured(): bool
+    {
+        return filled(config('media.remote.endpoint'));
     }
 
     public static function imageKitConfigured(): bool
@@ -55,6 +66,10 @@ class MediaStorage
 
         if (self::usesImageKit()) {
             return app(ImageKitService::class)->url(ltrim($path, '/'));
+        }
+
+        if (self::usesRemote()) {
+            return app(RemoteUploadService::class)->url(ltrim($path, '/'));
         }
 
         return rtrim(config('media.url'), '/').'/'.ltrim($path, '/');
@@ -117,6 +132,7 @@ class MediaStorage
         $bases = array_filter([
             config('media.legacy_base_url'),
             config('media.url'),
+            config('media.remote.public_base'),
             config('media.imagekit.url_endpoint'),
             rtrim((string) config('media.legacy_base_url'), '/').'/public',
             'https://amcserver.com/app/taaruf/storage/app/public',
@@ -138,6 +154,8 @@ class MediaStorage
 
         if (self::usesImageKit()) {
             $path = app(ImageKitService::class)->uploadUploadedFile($file, $folder, $filename);
+        } elseif (self::usesRemote()) {
+            $path = app(RemoteUploadService::class)->uploadUploadedFile($file, $folder, $filename);
         } else {
             $path = $file->storeAs($folder, $filename, self::diskName());
         }
@@ -154,6 +172,8 @@ class MediaStorage
 
         if (self::usesImageKit()) {
             $path = app(ImageKitService::class)->uploadBinary($relativePath, $contents);
+        } elseif (self::usesRemote()) {
+            $path = app(RemoteUploadService::class)->uploadBinary($relativePath, $contents);
         } else {
             Storage::disk(self::diskName())->put($relativePath, $contents);
             $path = $relativePath;
@@ -178,6 +198,10 @@ class MediaStorage
             return app(ImageKitService::class)->delete($relative);
         }
 
+        if (self::usesRemote()) {
+            return app(RemoteUploadService::class)->delete($relative);
+        }
+
         return Storage::disk(self::diskName())->delete($relative);
     }
 
@@ -188,7 +212,7 @@ class MediaStorage
     {
         $relative = self::relativePath($path) ?? $path;
 
-        if (self::usesImageKit() || str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+        if (self::usesImageKit() || self::usesRemote() || str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
             $url = self::url($relative) ?? $path;
             $tmp = sys_get_temp_dir().DIRECTORY_SEPARATOR.Str::uuid().'_'.basename($relative);
             $response = Http::timeout(120)->get($url);

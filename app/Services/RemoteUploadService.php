@@ -22,17 +22,17 @@ class RemoteUploadService
             throw new \RuntimeException('Could not read uploaded file.');
         }
 
-        return $this->uploadMultipart((string) file_get_contents($realPath), $fileName, $folder);
+        return $this->uploadMultipart((string) file_get_contents($realPath), $fileName, $folder, $this->mimeFor($fileName));
     }
 
     public function uploadBinary(string $relativePath, string $contents): string
     {
         $relativePath = ltrim($relativePath, '/');
 
-        return $this->uploadMultipart($contents, basename($relativePath), dirname($relativePath));
+        return $this->uploadMultipart($contents, basename($relativePath), dirname($relativePath), $this->mimeFor($relativePath));
     }
 
-    private function uploadMultipart(string $contents, string $fileName, string $folder): string
+    private function uploadMultipart(string $contents, string $fileName, string $folder, string $mime): string
     {
         $endpoint = (string) config('media.remote.endpoint');
         $token = (string) config('media.remote.token');
@@ -56,7 +56,7 @@ class RemoteUploadService
         }
 
         $response = $request
-            ->attach('file', $contents, $fileName)
+            ->attach('file', $contents, $fileName, ['Content-Type' => $mime])
             ->post($endpoint, $form);
 
         $json = $response->json();
@@ -107,6 +107,37 @@ class RemoteUploadService
         }
 
         return $base.'/'.$path;
+    }
+
+    /**
+     * Resolve a Content-Type for the upload part from the file extension.
+     *
+     * The upload server validates the declared MIME type, so we must send an
+     * explicit, allowed Content-Type. Notably .m4a must be sent as audio/mp4
+     * (PHP usually detects it as video/mp4, which the server rejects).
+     */
+    private function mimeFor(string $fileName): string
+    {
+        $ext = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+
+        return [
+            // images
+            'jpg' => 'image/jpeg',
+            'jpeg' => 'image/jpeg',
+            'png' => 'image/png',
+            'gif' => 'image/gif',
+            'webp' => 'image/webp',
+            // video
+            'mp4' => 'video/mp4',
+            'mov' => 'video/quicktime',
+            'webm' => 'video/webm',
+            // audio / voice
+            'mp3' => 'audio/mpeg',
+            'wav' => 'audio/wav',
+            'ogg' => 'audio/ogg',
+            'm4a' => 'audio/mp4',
+            'aac' => 'audio/mp4',
+        ][$ext] ?? 'application/octet-stream';
     }
 
     private function publicDir(string $dir): string

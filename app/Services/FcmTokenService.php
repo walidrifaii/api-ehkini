@@ -28,14 +28,12 @@ class FcmTokenService
         $creds = $this->resolveCredentials();
 
         if ($creds === null) {
-            $file = (string) config('services.fcm.credentials_file');
-
             if (filled(config('services.fcm.credentials_json')) || filled(config('services.fcm.credentials_base64'))) {
                 return 'FCM credentials JSON is set but invalid (check FCM_CREDENTIALS_JSON or FCM_CREDENTIALS_BASE64)';
             }
 
-            return 'FCM credentials file not found at: '.$file
-                .' — set FCM_CREDENTIALS_JSON in Easypanel env, or upload the JSON file to that path';
+            return 'FCM credentials not found. Easypanel Environment: set FCM_PROJECT_ID=taaruf-f15c3 and FCM_CREDENTIALS_BASE64=<base64 of firebase JSON>. '
+                .'Tried paths: '.implode(', ', $this->credentialFileCandidates());
         }
 
         if (empty($creds['client_email']) || empty($creds['private_key'])) {
@@ -101,11 +99,38 @@ class FcmTokenService
             }
         }
 
-        $file = (string) config('services.fcm.credentials_file');
-        if ($file !== '' && is_file($file)) {
+        $file = $this->findCredentialsFile();
+        if ($file !== null) {
             $creds = json_decode((string) file_get_contents($file), true);
 
             return is_array($creds) ? $creds : null;
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function credentialFileCandidates(): array
+    {
+        $configured = trim((string) config('services.fcm.credentials_file'));
+
+        $candidates = array_filter([
+            $configured !== '' ? $configured : null,
+            storage_path('app/firebase-service-account.json'),
+            storage_path('app/firebase/serviceAccount.json'),
+        ]);
+
+        return array_values(array_unique($candidates));
+    }
+
+    private function findCredentialsFile(): ?string
+    {
+        foreach ($this->credentialFileCandidates() as $path) {
+            if (is_file($path)) {
+                return $path;
+            }
         }
 
         return null;
@@ -118,8 +143,8 @@ class FcmTokenService
      */
     private function persistCredentialsFile(array $creds): void
     {
-        $path = (string) config('services.fcm.credentials_file');
-        if ($path === '' || is_file($path)) {
+        $path = storage_path('app/firebase-service-account.json');
+        if (is_file($path)) {
             return;
         }
 

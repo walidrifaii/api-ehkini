@@ -182,7 +182,17 @@ class FcmTokenService
 
         $candidates[] = stripslashes($trimmed);
 
-        foreach (array_unique($candidates) as $candidate) {
+        // Easypanel: pretty-printed JSON pasted on multiple lines (if env captured it).
+        $unquoted = $trimmed;
+        if (
+            (str_starts_with($unquoted, "'") && str_ends_with($unquoted, "'"))
+            || (str_starts_with($unquoted, '"') && str_ends_with($unquoted, '"'))
+        ) {
+            $unquoted = substr($unquoted, 1, -1);
+        }
+        $candidates[] = preg_replace('/\s+/', '', $unquoted) ?? $unquoted;
+
+        foreach (array_unique(array_filter($candidates)) as $candidate) {
             $creds = json_decode($candidate, true);
             if (is_array($creds)) {
                 return $this->normalizeCredentialArray($creds);

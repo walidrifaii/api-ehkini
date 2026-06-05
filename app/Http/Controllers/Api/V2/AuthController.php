@@ -152,7 +152,7 @@ class AuthController extends \App\Http\Controllers\Api\V1\AuthController
             'occupation' => ['nullable', 'string', 'max:150'],
             'education' => ['nullable', 'string', 'max:150'],
             'about_me' => ['nullable', 'string', 'max:2000'],
-            'fcm_token' => ['nullable', 'string', 'max:255'],
+            'fcm_token' => ['nullable', 'string', 'max:512'],
             'platform' => ['nullable', 'in:android,ios,web'],
             'interests' => ['nullable', 'array'],
             'interests.*' => ['integer', 'exists:interests,id'],

@@ -74,18 +74,29 @@ class FcmService
             $apiMessage = is_array($json)
                 ? ($json['error']['message'] ?? null)
                 : null;
+            $errorCode = is_array($json)
+                ? ($json['error']['details'][0]['errorCode'] ?? $json['error']['status'] ?? null)
+                : null;
 
             Log::error('FCM sendToToken failed', [
                 'status' => $response->status(),
                 'project_id' => $projectId,
+                'error_code' => $errorCode,
                 'body'   => $json ?: $response->body(),
             ]);
 
+            $errorText = is_string($apiMessage) && $apiMessage !== ''
+                ? $apiMessage
+                : 'FCM request failed (HTTP '.$response->status().')';
+
+            if ($this->isInvalidDeviceTokenError($apiMessage, $errorCode)) {
+                $errorText = 'FCM device token invalid or expired — receiver must log in again to refresh fcm_token';
+            }
+
             return [
                 'ok' => false,
-                'error' => is_string($apiMessage) && $apiMessage !== ''
-                    ? $apiMessage
-                    : 'FCM request failed (HTTP '.$response->status().')',
+                'error' => $errorText,
+                'error_code' => $errorCode,
                 'status' => $response->status(),
                 'body' => $json ?: $response->body(),
             ];
@@ -96,5 +107,16 @@ class FcmService
             'status' => $response->status(),
             'body' => $response->json(),
         ];
+    }
+
+    private function isInvalidDeviceTokenError(mixed $message, mixed $errorCode): bool
+    {
+        $haystack = strtolower((string) $message.' '.(string) $errorCode);
+
+        return str_contains($haystack, 'registration token')
+            || str_contains($haystack, 'not a valid')
+            || str_contains($haystack, 'unregistered')
+            || $errorCode === 'UNREGISTERED'
+            || $errorCode === 'INVALID_ARGUMENT';
     }
 }

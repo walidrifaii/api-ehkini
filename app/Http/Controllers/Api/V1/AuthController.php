@@ -48,7 +48,7 @@ class AuthController extends Controller
 
             'profile_image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:'.self::PROFILE_IMAGE_MAX_KB],
 
-            'fcm_token'     => ['nullable', 'string', 'max:255'],
+            'fcm_token'     => ['nullable', 'string', 'max:512'],
             'platform'      => ['nullable', 'in:android,ios,web'],
 
             'interests'     => ['nullable', 'array'],
@@ -210,7 +210,7 @@ class AuthController extends Controller
             'phone'        => ['required', 'string', 'max:30'],
             'password'     => ['required', 'string'],
 
-            'fcm_token'    => ['nullable', 'string', 'max:255'],
+            'fcm_token'    => ['nullable', 'string', 'max:512'],
             'platform'     => ['nullable', 'in:android,ios,web'],
             'location'     => ['nullable', 'string', 'max:255'],
         ]);
@@ -794,7 +794,7 @@ class AuthController extends Controller
             'education'      => ['nullable', 'string', 'max:150'],
             'about_me'       => ['nullable', 'string', 'max:2000'],
 
-            'fcm_token'      => ['nullable', 'string', 'max:255'],
+            'fcm_token'      => ['nullable', 'string', 'max:512'],
             'platform'       => ['nullable', 'in:android,ios,web'],
 
             'interests'      => ['nullable', 'array'],

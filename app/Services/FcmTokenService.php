@@ -159,6 +159,14 @@ class FcmTokenService
 
     private function normalizeBase64(string $value): string
     {
+        $value = trim($value);
+        if (
+            (str_starts_with($value, '"') && str_ends_with($value, '"'))
+            || (str_starts_with($value, "'") && str_ends_with($value, "'"))
+        ) {
+            $value = substr($value, 1, -1);
+        }
+
         // Easypanel / copy-paste often adds spaces or line breaks.
         return preg_replace('/\s+/', '', $value) ?? '';
     }

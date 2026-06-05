@@ -91,6 +91,10 @@ class FcmService
 
             if ($this->isInvalidDeviceTokenError($apiMessage, $errorCode)) {
                 $errorText = 'FCM device token invalid or expired — receiver must log in again to refresh fcm_token';
+            } elseif ($this->isFcmIamDenied($apiMessage, $errorCode)) {
+                $errorText = 'FCM IAM denied: add role Firebase Admin (roles/firebase.admin) or Firebase Admin SDK Administrator Service Agent to '
+                    .'firebase-adminsdk-fbsvc@taaruf-f15c3.iam.gserviceaccount.com — NOT Firebase Cloud Messaging Admin (that role lacks cloudmessaging.messages.create). '
+                    .'Also enable Firebase Cloud Messaging API in Google Cloud.';
             }
 
             return [
@@ -118,5 +122,13 @@ class FcmService
             || str_contains($haystack, 'unregistered')
             || $errorCode === 'UNREGISTERED'
             || $errorCode === 'INVALID_ARGUMENT';
+    }
+
+    private function isFcmIamDenied(mixed $message, mixed $errorCode): bool
+    {
+        $haystack = strtolower((string) $message.' '.(string) $errorCode);
+
+        return str_contains($haystack, 'cloudmessaging.messages.create')
+            || str_contains($haystack, 'iam_permission_denied');
     }
 }

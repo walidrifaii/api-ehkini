@@ -2,7 +2,7 @@
 
 namespace App\Services\Agora;
 
-class ServiceRtc
+class ServiceRtc extends Service
 {
     public const SERVICE_TYPE = 1;
 
@@ -11,32 +11,19 @@ class ServiceRtc
     public const PRIVILEGE_PUBLISH_VIDEO_STREAM = 3;
     public const PRIVILEGE_PUBLISH_DATA_STREAM = 4;
 
-    private string $channelName;
-    private string $uid;
-    private array $privileges = [];
+    public string $channelName;
 
-    public function __construct(string $channelName, string $uid)
+    public string $uid;
+
+    public function __construct(string $channelName = '', string $uid = '')
     {
+        parent::__construct(self::SERVICE_TYPE);
         $this->channelName = $channelName;
         $this->uid = $uid;
     }
 
-    public function addPrivilege(int $privilege, int $expire): void
-    {
-        $this->privileges[$privilege] = $expire;
-    }
-
     public function pack(): string
     {
-        $content = pack("V", self::SERVICE_TYPE);
-        $content .= pack("v", strlen($this->channelName)) . $this->channelName;
-        $content .= pack("v", strlen($this->uid)) . $this->uid;
-        $content .= pack("v", count($this->privileges));
-
-        foreach ($this->privileges as $k => $v) {
-            $content .= pack("V", $k) . pack("V", $v);
-        }
-
-        return $content;
+        return parent::pack().Util::packString($this->channelName).Util::packString($this->uid);
     }
 }

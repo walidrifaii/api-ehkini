@@ -4,54 +4,71 @@ namespace App\Services\Agora;
 
 class AccessToken2
 {
+    private const VERSION = '007';
+
+    private const VERSION_LENGTH = 3;
+
+    private string $appCert;
+
     private string $appId;
-    private string $appCertificate;
+
     private int $expire;
+
+    private int $issueTs;
+
+    private int $salt;
+
+    /** @var array<int, Service> */
     private array $services = [];
 
-    public function __construct(string $appId, string $appCertificate, int $expire)
+    public function __construct(string $appId = '', string $appCert = '', int $expire = 900)
     {
         $this->appId = $appId;
-        $this->appCertificate = $appCertificate;
+        $this->appCert = $appCert;
         $this->expire = $expire;
+        $this->issueTs = time();
+        $this->salt = random_int(1, 99999999);
     }
 
-    public function addService($service): void
+    public function addService(Service $service): void
     {
-        $this->services[] = $service;
+        $this->services[$service->getServiceType()] = $service;
     }
 
     public function build(): string
     {
-        $issueTs = time();
-        $salt = random_int(1, 99999999);
-
-        $signing = $this->appId . $issueTs . $salt . $this->expire;
-
-        foreach ($this->services as $service) {
-            $signing .= $service->pack();
+        if (! self::isUuid($this->appId) || ! self::isUuid($this->appCert)) {
+            return '';
         }
 
-        $signature = hash_hmac("sha256", $signing, $this->appCertificate, true);
+        $signing = $this->getSign();
+        $data = Util::packString($this->appId)
+            .Util::packUint32($this->issueTs)
+            .Util::packUint32($this->expire)
+            .Util::packUint32($this->salt)
+            .Util::packUint16(count($this->services));
 
-        $content = pack("V", $issueTs) .
-            pack("V", $salt) .
-            pack("V", $this->expire) .
-            pack("v", count($this->services));
-
+        ksort($this->services);
         foreach ($this->services as $service) {
-            $content .= $service->pack();
+            $data .= $service->pack();
         }
 
-        $crc = crc32($content);
+        $signature = hash_hmac('sha256', $data, $signing, true);
 
-        return "007" . $this->appId .
-            self::base64UrlEncode($signature) .
-            self::base64UrlEncode($content);
+        return self::VERSION.base64_encode(
+            zlib_encode(Util::packString($signature).$data, ZLIB_ENCODING_DEFLATE)
+        );
     }
 
-    private static function base64UrlEncode(string $data): string
+    private function getSign(): string
     {
-        return str_replace(['+', '/', '='], ['-', '_', ''], base64_encode($data));
+        $hh = hash_hmac('sha256', $this->appCert, Util::packUint32($this->issueTs), true);
+
+        return hash_hmac('sha256', $hh, Util::packUint32($this->salt), true);
+    }
+
+    private static function isUuid(string $str): bool
+    {
+        return strlen($str) === 32 && ctype_xdigit($str);
     }
 }

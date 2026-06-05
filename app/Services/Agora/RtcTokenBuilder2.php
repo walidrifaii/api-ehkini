@@ -18,7 +18,7 @@ class RtcTokenBuilder2
     ): string {
         $token = new AccessToken2($appId, $appCertificate, $tokenExpire);
 
-        $serviceRtc = new ServiceRtc($channelName, (string)$uid);
+        $serviceRtc = new ServiceRtc($channelName, (string) $uid);
 
         $serviceRtc->addPrivilege(ServiceRtc::PRIVILEGE_JOIN_CHANNEL, $privilegeExpire);
         if ($role === self::ROLE_PUBLISHER) {

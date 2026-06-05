@@ -26,11 +26,14 @@ return [
     ],
     'fcm' => [
         'project_id' => env('FCM_PROJECT_ID'),
-        // Firebase service account JSON path. Falls back to common env names.
+        // Option A (Easypanel): paste JSON or base64 in env — no file upload needed.
+        'credentials_json' => env('FCM_CREDENTIALS_JSON'),
+        'credentials_base64' => env('FCM_CREDENTIALS_BASE64'),
+        // Option B: path to service account JSON on disk (Docker default below).
         'credentials_file' => env('FCM_CREDENTIALS_FILE')
             ?: env('FIREBASE_CREDENTIALS')
             ?: env('GOOGLE_APPLICATION_CREDENTIALS')
-            ?: storage_path('app/firebase/serviceAccount.json'),
+            ?: storage_path('app/firebase-service-account.json'),
     ],
 
     'ses' => [

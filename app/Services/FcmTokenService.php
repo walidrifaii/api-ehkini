@@ -21,24 +21,25 @@ class FcmTokenService
      */
     public function configurationError(): ?string
     {
-        $credentialsFile = (string) config('services.fcm.credentials_file');
-
-        if ($credentialsFile === '') {
-            return 'FCM credentials path not set (FCM_CREDENTIALS_FILE)';
-        }
-
-        if (! is_file($credentialsFile)) {
-            return 'FCM credentials file not found at: '.$credentialsFile;
-        }
-
-        $creds = json_decode((string) file_get_contents($credentialsFile), true);
-
-        if (! is_array($creds) || empty($creds['client_email']) || empty($creds['private_key'])) {
-            return 'FCM credentials file is invalid (missing client_email or private_key)';
-        }
-
         if (empty(config('services.fcm.project_id'))) {
             return 'FCM_PROJECT_ID is not set in .env';
+        }
+
+        $creds = $this->resolveCredentials();
+
+        if ($creds === null) {
+            $file = (string) config('services.fcm.credentials_file');
+
+            if (filled(config('services.fcm.credentials_json')) || filled(config('services.fcm.credentials_base64'))) {
+                return 'FCM credentials JSON is set but invalid (check FCM_CREDENTIALS_JSON or FCM_CREDENTIALS_BASE64)';
+            }
+
+            return 'FCM credentials file not found at: '.$file
+                .' — set FCM_CREDENTIALS_JSON in Easypanel env, or upload the JSON file to that path';
+        }
+
+        if (empty($creds['client_email']) || empty($creds['private_key'])) {
+            return 'FCM credentials are invalid (missing client_email or private_key)';
         }
 
         return null;
@@ -70,14 +71,72 @@ class FcmTokenService
         return $token;
     }
 
+    /**
+     * Load Firebase service account from env JSON/base64 or from disk.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function resolveCredentials(): ?array
+    {
+        $json = config('services.fcm.credentials_json');
+        if (filled($json)) {
+            $creds = json_decode((string) $json, true);
+            if (is_array($creds)) {
+                $this->persistCredentialsFile($creds);
+
+                return $creds;
+            }
+        }
+
+        $base64 = config('services.fcm.credentials_base64');
+        if (filled($base64)) {
+            $decoded = base64_decode((string) $base64, true);
+            if ($decoded !== false) {
+                $creds = json_decode($decoded, true);
+                if (is_array($creds)) {
+                    $this->persistCredentialsFile($creds);
+
+                    return $creds;
+                }
+            }
+        }
+
+        $file = (string) config('services.fcm.credentials_file');
+        if ($file !== '' && is_file($file)) {
+            $creds = json_decode((string) file_get_contents($file), true);
+
+            return is_array($creds) ? $creds : null;
+        }
+
+        return null;
+    }
+
+    /**
+     * Cache credentials JSON on disk (Easypanel persistent storage) when provided via env.
+     *
+     * @param array<string, mixed> $creds
+     */
+    private function persistCredentialsFile(array $creds): void
+    {
+        $path = (string) config('services.fcm.credentials_file');
+        if ($path === '' || is_file($path)) {
+            return;
+        }
+
+        $dir = dirname($path);
+        if (! is_dir($dir)) {
+            @mkdir($dir, 0755, true);
+        }
+
+        @file_put_contents($path, json_encode($creds, JSON_UNESCAPED_SLASHES));
+    }
+
     private function fetchAccessToken(): ?string
     {
-        $credentialsFile = config('services.fcm.credentials_file');
-
-        $creds = json_decode((string) file_get_contents($credentialsFile), true);
+        $creds = $this->resolveCredentials();
 
         if (! is_array($creds) || empty($creds['client_email']) || empty($creds['private_key'])) {
-            $this->lastError = 'FCM credentials file is invalid (missing client_email or private_key)';
+            $this->lastError = 'FCM credentials are invalid (missing client_email or private_key)';
             Log::error('FCM: '.$this->lastError);
 
             return null;

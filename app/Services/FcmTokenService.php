@@ -21,19 +21,21 @@ class FcmTokenService
      */
     public function configurationError(): ?string
     {
-        if (empty(config('services.fcm.project_id'))) {
-            return 'FCM_PROJECT_ID is not set in .env';
+        $projectId = (string) (config('services.fcm.project_id') ?: env('FCM_PROJECT_ID') ?: '');
+        if ($projectId === '') {
+            return 'FCM_PROJECT_ID is not set in Easypanel Environment';
         }
 
         $creds = $this->resolveCredentials();
 
         if ($creds === null) {
-            if (filled(config('services.fcm.credentials_json')) || filled(config('services.fcm.credentials_base64'))) {
-                return 'FCM credentials JSON is set but invalid (check FCM_CREDENTIALS_JSON or FCM_CREDENTIALS_BASE64)';
+            $diag = $this->credentialsDiagnostics();
+
+            if ($diag['base64_set'] || $diag['json_set']) {
+                return 'FCM credentials env is set but invalid. '.$diag['summary'];
             }
 
-            return 'FCM credentials not found. Easypanel Environment: set FCM_PROJECT_ID=taaruf-f15c3 and FCM_CREDENTIALS_BASE64=<base64 of firebase JSON>. '
-                .'Tried paths: '.implode(', ', $this->credentialFileCandidates());
+            return 'FCM credentials not found. '.$diag['summary'];
         }
 
         if (empty($creds['client_email']) || empty($creds['private_key'])) {
@@ -76,9 +78,9 @@ class FcmTokenService
      */
     private function resolveCredentials(): ?array
     {
-        $json = config('services.fcm.credentials_json');
-        if (filled($json)) {
-            $creds = json_decode((string) $json, true);
+        $json = $this->envValue('FCM_CREDENTIALS_JSON', 'services.fcm.credentials_json');
+        if ($json !== '') {
+            $creds = json_decode($json, true);
             if (is_array($creds)) {
                 $this->persistCredentialsFile($creds);
 
@@ -86,10 +88,15 @@ class FcmTokenService
             }
         }
 
-        $base64 = config('services.fcm.credentials_base64');
-        if (filled($base64)) {
-            $decoded = base64_decode((string) $base64, true);
-            if ($decoded !== false) {
+        $base64 = $this->normalizeBase64(
+            $this->envValue('FCM_CREDENTIALS_BASE64', 'services.fcm.credentials_base64')
+        );
+        if ($base64 !== '') {
+            $decoded = base64_decode($base64, true);
+            if ($decoded === false) {
+                $decoded = base64_decode($base64, false);
+            }
+            if ($decoded !== false && $decoded !== '') {
                 $creds = json_decode($decoded, true);
                 if (is_array($creds)) {
                     $this->persistCredentialsFile($creds);
@@ -107,6 +114,58 @@ class FcmTokenService
         }
 
         return null;
+    }
+
+    private function envValue(string $envKey, string $configKey): string
+    {
+        $fromConfig = config($configKey);
+        if (filled($fromConfig)) {
+            return trim((string) $fromConfig);
+        }
+
+        $fromEnv = env($envKey);
+
+        return filled($fromEnv) ? trim((string) $fromEnv) : '';
+    }
+
+    private function normalizeBase64(string $value): string
+    {
+        // Easypanel / copy-paste often adds spaces or line breaks.
+        return preg_replace('/\s+/', '', $value) ?? '';
+    }
+
+    /**
+     * @return array{summary: string, base64_set: bool, json_set: bool, base64_len: int, project_id: string}
+     */
+    private function credentialsDiagnostics(): array
+    {
+        $base64Raw = $this->envValue('FCM_CREDENTIALS_BASE64', 'services.fcm.credentials_base64');
+        $jsonRaw = $this->envValue('FCM_CREDENTIALS_JSON', 'services.fcm.credentials_json');
+        $base64Len = strlen($this->normalizeBase64($base64Raw));
+        $projectId = (string) (config('services.fcm.project_id') ?: env('FCM_PROJECT_ID') ?: '');
+
+        $parts = [
+            'FCM_PROJECT_ID='.($projectId !== '' ? $projectId : '(not set)'),
+            'FCM_CREDENTIALS_BASE64 length='.$base64Len.' (expected ~3168 for taaruf JSON)',
+            'FCM_CREDENTIALS_JSON length='.strlen($jsonRaw),
+            'files tried: '.implode(', ', $this->credentialFileCandidates()),
+        ];
+
+        if ($base64Len > 0 && $base64Len < 500) {
+            $parts[] = 'hint: base64 looks too short — paste the full line from fcm-base64-TAARUF-easypanel.txt';
+        }
+
+        if ($base64Raw !== '' && str_contains($base64Raw, '<base64')) {
+            $parts[] = 'hint: replace placeholder text with real base64, not <base64 of firebase JSON>';
+        }
+
+        return [
+            'summary' => implode('; ', $parts),
+            'base64_set' => $base64Raw !== '',
+            'json_set' => $jsonRaw !== '',
+            'base64_len' => $base64Len,
+            'project_id' => $projectId,
+        ];
     }
 
     /**

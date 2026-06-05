@@ -73,6 +73,16 @@ class CallNotificationController extends Controller
                     'channel_id' => $channelName,
                     'fcm_error' => $result['error'] ?? null,
                 ]);
+
+                if ($this->isStaleDeviceToken($result)) {
+                    $receiver->update(['fcm_token' => null, 'token_updated_at' => null]);
+                }
+            } else {
+                Log::info('Call notify FCM sent', [
+                    'caller_id' => $caller->id,
+                    'receiver_id' => $receiver->id,
+                    'channel_id' => $channelName,
+                ]);
             }
 
             return response()->json([
@@ -146,4 +156,17 @@ class CallNotificationController extends Controller
         'fcm'   => $result,
     ], 200);
 }
+
+    /**
+     * @param array<string, mixed> $result
+     */
+    private function isStaleDeviceToken(array $result): bool
+    {
+        $error = strtolower((string) ($result['error'] ?? ''));
+        $code = (string) ($result['error_code'] ?? '');
+
+        return str_contains($error, 'registration token')
+            || str_contains($error, 'device token invalid')
+            || in_array($code, ['UNREGISTERED', 'INVALID_ARGUMENT'], true);
+    }
 }

@@ -109,7 +109,7 @@ class FcmTokenService
     {
         $json = $this->envValue('FCM_CREDENTIALS_JSON', 'services.fcm.credentials_json');
         if ($json !== '') {
-            $creds = json_decode($json, true);
+            $creds = $this->parseJsonCredentials($json);
             if (is_array($creds)) {
                 $this->persistCredentialsFile($creds);
 
@@ -161,6 +161,48 @@ class FcmTokenService
     {
         // Easypanel / copy-paste often adds spaces or line breaks.
         return preg_replace('/\s+/', '', $value) ?? '';
+    }
+
+    /**
+     * Parse Firebase JSON from .env (single-quoted, double-quoted, or raw minified).
+     *
+     * @return array<string, mixed>|null
+     */
+    private function parseJsonCredentials(string $raw): ?array
+    {
+        $candidates = [$raw];
+
+        $trimmed = trim($raw);
+        if (
+            (str_starts_with($trimmed, "'") && str_ends_with($trimmed, "'"))
+            || (str_starts_with($trimmed, '"') && str_ends_with($trimmed, '"'))
+        ) {
+            $candidates[] = substr($trimmed, 1, -1);
+        }
+
+        $candidates[] = stripslashes($trimmed);
+
+        foreach (array_unique($candidates) as $candidate) {
+            $creds = json_decode($candidate, true);
+            if (is_array($creds)) {
+                return $this->normalizeCredentialArray($creds);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $creds
+     * @return array<string, mixed>
+     */
+    private function normalizeCredentialArray(array $creds): array
+    {
+        if (isset($creds['private_key']) && is_string($creds['private_key'])) {
+            $creds['private_key'] = str_replace(['\\n', '\n'], "\n", $creds['private_key']);
+        }
+
+        return $creds;
     }
 
     /**

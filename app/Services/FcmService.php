@@ -36,11 +36,11 @@ class FcmService
             return ['ok' => false, 'error' => $error];
         }
 
-        $projectId = config('services.fcm.project_id');
+        $projectId = $this->tokenService->resolveProjectId();
         if (empty($projectId)) {
             Log::error('FCM sendToToken: FCM_PROJECT_ID missing');
 
-            return ['ok' => false, 'error' => 'FCM_PROJECT_ID missing'];
+            return ['ok' => false, 'error' => 'FCM_PROJECT_ID missing (set to taaruf-f15c3 in Easypanel)'];
         }
 
         $url = "https://fcm.googleapis.com/v1/projects/{$projectId}/messages:send";
@@ -71,13 +71,21 @@ class FcmService
 
         if ($response->failed()) {
             $json = $response->json();
+            $apiMessage = is_array($json)
+                ? ($json['error']['message'] ?? null)
+                : null;
+
             Log::error('FCM sendToToken failed', [
                 'status' => $response->status(),
+                'project_id' => $projectId,
                 'body'   => $json ?: $response->body(),
             ]);
 
             return [
                 'ok' => false,
+                'error' => is_string($apiMessage) && $apiMessage !== ''
+                    ? $apiMessage
+                    : 'FCM request failed (HTTP '.$response->status().')',
                 'status' => $response->status(),
                 'body' => $json ?: $response->body(),
             ];

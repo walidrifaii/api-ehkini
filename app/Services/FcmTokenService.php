@@ -17,13 +17,42 @@ class FcmTokenService
     }
 
     /**
+     * FCM HTTP v1 project id: env first, then service account JSON project_id.
+     */
+    public function resolveProjectId(): ?string
+    {
+        $fromEnv = trim((string) (config('services.fcm.project_id') ?: env('FCM_PROJECT_ID') ?: ''));
+        if ($fromEnv !== '' && ! $this->isPlaceholderProjectId($fromEnv)) {
+            return $fromEnv;
+        }
+
+        $creds = $this->resolveCredentials();
+        $fromCreds = is_array($creds) ? trim((string) ($creds['project_id'] ?? '')) : '';
+
+        return $fromCreds !== '' ? $fromCreds : null;
+    }
+
+    private function isPlaceholderProjectId(string $value): bool
+    {
+        $normalized = strtolower(trim($value));
+
+        return in_array($normalized, [
+            'your_firebase_project_id',
+            'your-project-id',
+            'your_project_id',
+            'changeme',
+            'xxx',
+        ], true);
+    }
+
+    /**
      * Return a human-readable reason when FCM is not configured, or null if OK.
      */
     public function configurationError(): ?string
     {
-        $projectId = (string) (config('services.fcm.project_id') ?: env('FCM_PROJECT_ID') ?: '');
-        if ($projectId === '') {
-            return 'FCM_PROJECT_ID is not set in Easypanel Environment';
+        $projectId = $this->resolveProjectId();
+        if ($projectId === null || $projectId === '') {
+            return 'FCM_PROJECT_ID is not set in Easypanel Environment (use taaruf-f15c3)';
         }
 
         $creds = $this->resolveCredentials();

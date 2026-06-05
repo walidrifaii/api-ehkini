@@ -13,10 +13,10 @@ class CheckFcmConfig extends Command
 
     public function handle(FcmTokenService $fcmTokenService): int
     {
-        $projectId = config('services.fcm.project_id') ?: env('FCM_PROJECT_ID');
+        $projectId = $fcmTokenService->resolveProjectId();
         $base64Len = strlen(preg_replace('/\s+/', '', (string) (config('services.fcm.credentials_base64') ?: env('FCM_CREDENTIALS_BASE64') ?: '')) ?? '');
 
-        $this->line('FCM_PROJECT_ID: '.($projectId ?: '(not set)'));
+        $this->line('FCM_PROJECT_ID (resolved): '.($projectId ?: '(not set)'));
         $this->line('FCM_CREDENTIALS_BASE64 length: '.$base64Len.' (expected ~3168)');
 
         $error = $fcmTokenService->configurationError();

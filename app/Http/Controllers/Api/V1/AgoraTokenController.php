@@ -28,8 +28,6 @@ class AgoraTokenController extends Controller
         $appCertificate = (string) env('AGORA_APP_CERTIFICATE');
         $expiresIn = (int) env('AGORA_TOKEN_EXPIRE_SECONDS', 3600);
 
-        $expireTs = time() + $expiresIn;
-
         Log::info('AGORA_TOKEN_REQUEST', [
             'channel_name' => $channelName,
             'uid' => $uid,
@@ -61,7 +59,7 @@ class AgoraTokenController extends Controller
                 $uid,
                 $role,
                 $expiresIn,
-                $expireTs
+                $expiresIn
             );
 
             Log::info('AGORA_TOKEN_SUCCESS', [

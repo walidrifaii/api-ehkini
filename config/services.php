@@ -24,10 +24,14 @@ return [
     'postmark' => [
         'token' => env('POSTMARK_TOKEN'),
     ],
-   'fcm' => [
-    'project_id'        => env('FCM_PROJECT_ID'),
-    'credentials_file'  => env('FCM_CREDENTIALS_FILE'),
-],
+    'fcm' => [
+        'project_id' => env('FCM_PROJECT_ID'),
+        // Firebase service account JSON path. Falls back to common env names.
+        'credentials_file' => env('FCM_CREDENTIALS_FILE')
+            ?: env('FIREBASE_CREDENTIALS')
+            ?: env('GOOGLE_APPLICATION_CREDENTIALS')
+            ?: storage_path('app/firebase/serviceAccount.json'),
+    ],
 
     'ses' => [
         'key' => env('AWS_ACCESS_KEY_ID'),

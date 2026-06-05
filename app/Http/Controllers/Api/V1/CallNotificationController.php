@@ -66,6 +66,15 @@ class CallNotificationController extends Controller
                 ]
             );
 
+            if (! ($result['ok'] ?? false)) {
+                Log::warning('Call notify FCM failed', [
+                    'caller_id' => $caller->id,
+                    'receiver_id' => $receiver->id,
+                    'channel_id' => $channelName,
+                    'fcm_error' => $result['error'] ?? null,
+                ]);
+            }
+
             return response()->json([
                 'ok' => (bool) ($result['ok'] ?? false),
                 'fcm' => $result,

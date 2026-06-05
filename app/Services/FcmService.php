@@ -21,15 +21,25 @@ class FcmService
             return ['ok' => false, 'error' => 'Empty token'];
         }
 
+        $configError = $this->tokenService->configurationError();
+        if ($configError !== null) {
+            Log::error('FCM sendToToken: '.$configError);
+
+            return ['ok' => false, 'error' => $configError];
+        }
+
         $accessToken = $this->tokenService->getAccessToken();
         if (empty($accessToken)) {
-            Log::error('FCM sendToToken: access token empty');
-            return ['ok' => false, 'error' => 'Access token empty'];
+            $error = $this->tokenService->lastError() ?: 'Access token empty';
+            Log::error('FCM sendToToken: '.$error);
+
+            return ['ok' => false, 'error' => $error];
         }
 
         $projectId = config('services.fcm.project_id');
         if (empty($projectId)) {
             Log::error('FCM sendToToken: FCM_PROJECT_ID missing');
+
             return ['ok' => false, 'error' => 'FCM_PROJECT_ID missing'];
         }
 

@@ -46,6 +46,7 @@ $v1Controllers = [
     'page' => \App\Http\Controllers\Api\V1\PageController::class,
     'interest' => \App\Http\Controllers\Api\V1\InterestController::class,
     'agoraToken' => \App\Http\Controllers\Api\V1\AgoraTokenController::class,
+    'supportContact' => \App\Http\Controllers\Api\V1\SupportContactController::class,
 ];
 
 $v2Controllers = [
@@ -71,6 +72,7 @@ $v2Controllers = [
     'page' => \App\Http\Controllers\Api\V2\PageController::class,
     'interest' => \App\Http\Controllers\Api\V2\InterestController::class,
     'agoraToken' => \App\Http\Controllers\Api\V2\AgoraTokenController::class,
+    'supportContact' => \App\Http\Controllers\Api\V2\SupportContactController::class,
 ];
 
 $versionedApiRoutes = function (array $controllers) {
@@ -126,7 +128,9 @@ Route::post('/media/video/upload', [$controllers['media'], 'uploadVideo']);
 
            Route::post('/forgot-password/send-otp', [$controllers['auth'], 'forgotPasswordSendOtp']);
 Route::post('/forgot-password/verify-otp', [$controllers['auth'], 'verifyForgotPasswordOtp']);
-    Route::post('/forgot-password/reset-password', [$controllers['auth'], 'resetPasswordAfterOtp']);    /* 
+    Route::post('/forgot-password/reset-password', [$controllers['auth'], 'resetPasswordAfterOtp']);
+    Route::post('/support/contact', [$controllers['supportContact'], 'store']);
+    /*
     |--------------------------------------------------------------------------
     | Authenticated Routes
     |--------------------------------------------------------------------------

@@ -131,4 +131,8 @@ return [
     'test_push_finished' => 'Test de notification terminé (HTTP v1).',
 
     'new_phone_must_differ' => 'Le nouveau numéro doit être différent de l\'actuel.',
+
+    'support_contact_sent' => 'Votre message a été envoyé au support.',
+    'support_contact_failed' => 'Échec de l\'envoi de votre message. Veuillez réessayer plus tard.',
+    'support_contact_unavailable' => 'Le contact support est temporairement indisponible.',
 ];

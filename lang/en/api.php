@@ -132,4 +132,8 @@ return [
     'test_push_finished' => 'Test push finished (HTTP v1).',
 
     'new_phone_must_differ' => 'New phone must be different from current phone.',
+
+    'support_contact_sent' => 'Your message was sent to support.',
+    'support_contact_failed' => 'Failed to send your message. Please try again later.',
+    'support_contact_unavailable' => 'Support contact is temporarily unavailable.',
 ];

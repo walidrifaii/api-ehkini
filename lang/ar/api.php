@@ -128,4 +128,8 @@ return [
     'test_push_finished' => 'انتهى اختبار الإشعار (HTTP v1).',
 
     'new_phone_must_differ' => 'يجب أن يكون الرقم الجديد مختلفاً عن الحالي.',
+
+    'support_contact_sent' => 'تم إرسال رسالتك إلى الدعم.',
+    'support_contact_failed' => 'فشل إرسال رسالتك. يرجى المحاولة لاحقاً.',
+    'support_contact_unavailable' => 'التواصل مع الدعم غير متاح مؤقتاً.',
 ];

@@ -42,4 +42,8 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    'support' => [
+        'email' => env('SUPPORT_ADMIN_EMAIL', env('MAIL_FROM_ADDRESS')),
+    ],
+
 ];

@@ -126,6 +126,26 @@ namespace App\OpenApi\V2\Paths;
  *     @OA\Parameter(name="uid", in="query", @OA\Schema(type="integer")),
  *     @OA\Response(response=200, description="Token and expiry")
  * )
+ *
+ * @OA\Post(
+ *     path="/api/v2/support/contact",
+ *     tags={"App"},
+ *     summary="Contact support",
+ *     description="Sends the user's email and message to the admin support inbox.",
+ *     @OA\RequestBody(
+ *         required=true,
+ *         @OA\JsonContent(
+ *             required={"email","message"},
+ *             @OA\Property(property="email", type="string", format="email", example="user@example.com"),
+ *             @OA\Property(property="message", type="string", example="I need help with my account."),
+ *             @OA\Property(property="subject", type="string", example="Account issue")
+ *         )
+ *     ),
+ *     @OA\Response(response=200, description="Message sent", @OA\JsonContent(ref="#/components/schemas/MessageResponse")),
+ *     @OA\Response(response=422, description="Validation error"),
+ *     @OA\Response(response=500, description="Email delivery failed"),
+ *     @OA\Response(response=503, description="Support email not configured")
+ * )
  */
 final class MediaMiscPaths
 {

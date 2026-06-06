@@ -356,6 +356,9 @@ class AuthController extends Controller
             }
 
             $updateFields = collect($data)->except(['interests', 'bio'])->toArray();
+            if (! empty($updateFields['fcm_token'])) {
+                $updateFields['token_updated_at'] = now();
+            }
             if (!empty($updateFields)) {
                 $user->update($updateFields);
             }
@@ -429,6 +432,9 @@ class AuthController extends Controller
 
             'interests'     => ['nullable', 'array'],
             'interests.*'   => ['integer', 'exists:interests,id'],
+
+            'fcm_token'     => ['nullable', 'string', 'max:512'],
+            'platform'      => ['nullable', 'in:android,ios,web'],
         ];
     }
 

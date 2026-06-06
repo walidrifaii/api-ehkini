@@ -33,6 +33,11 @@ if (!function_exists('api_trans')) {
             return $line;
         }
 
+        $dbLine = db_trans($key, $locale);
+        if ($dbLine !== $key && $dbLine !== '') {
+            return $replace ? str_replace(array_keys($replace), array_values($replace), $dbLine) : $dbLine;
+        }
+
         $fallback = trans('api.'.$key, $replace, ApiLocale::DEFAULT);
 
         return $fallback !== 'api.'.$key ? $fallback : $key;

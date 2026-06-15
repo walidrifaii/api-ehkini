@@ -50,7 +50,7 @@ class NearbyUsersService
             ->whereBetween('users.latitude', [$bbox['min_lat'], $bbox['max_lat']])
             ->whereBetween('users.longitude', [$bbox['min_lng'], $bbox['max_lng']]);
 
-        DiscoverableUsersQuery::applySocialExclusions($query, $viewer);
+        DiscoverableUsersQuery::applyNearbyExclusions($query, $viewer);
 
         if (! empty($filters['gender'])) {
             $query->where('users.gender', $filters['gender']);

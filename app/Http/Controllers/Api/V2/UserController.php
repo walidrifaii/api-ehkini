@@ -174,12 +174,58 @@ class UserController extends \App\Http\Controllers\Api\V1\UserController
 
         $users = $nearbyUsers->paginateNearby($authUser, $latitude, $longitude, $data);
 
-        $users->getCollection()->transform(function ($user) {
+        $friendMap = [];
+        $userIds = $users->getCollection()->pluck('id')->map(fn ($id) => (int) $id)->all();
+        if ($userIds !== []) {
+            $friendRows = Friendship::query()
+                ->where(function ($q) use ($authUser) {
+                    $q->where('sender_id', $authUser->id)
+                        ->orWhere('receiver_id', $authUser->id);
+                })
+                ->where(function ($q) use ($userIds) {
+                    $q->whereIn('sender_id', $userIds)
+                        ->orWhereIn('receiver_id', $userIds);
+                })
+                ->orderByDesc('id')
+                ->get(['id', 'sender_id', 'receiver_id', 'status']);
+
+            foreach ($friendRows as $row) {
+                $otherId = ((int) $row->sender_id === (int) $authUser->id)
+                    ? (int) $row->receiver_id
+                    : (int) $row->sender_id;
+                if (! isset($friendMap[$otherId])) {
+                    $friendMap[$otherId] = $row;
+                }
+            }
+        }
+
+        $users->getCollection()->transform(function ($user) use ($authUser, $friendMap) {
             $user->profile_image_url = $user->profile_image_url ?? null;
-            $user->friendship_status = 'none';
-            $user->friendship_id = null;
-            $user->can_cancel = false;
-            $user->can_respond = false;
+
+            $row = $friendMap[(int) $user->id] ?? null;
+            $friendshipStatus = 'none';
+            $friendshipId = null;
+            $canCancel = false;
+            $canRespond = false;
+
+            if ($row) {
+                $dbStatus = strtolower(trim((string) $row->status));
+                $friendshipId = $row->id;
+
+                if ($dbStatus === 'accepted') {
+                    $friendshipStatus = 'friends';
+                } elseif ($dbStatus === 'pending') {
+                    $isOutgoing = (int) $row->sender_id === (int) $authUser->id;
+                    $friendshipStatus = $isOutgoing ? 'outgoing_request' : 'incoming_request';
+                    $canCancel = $isOutgoing;
+                    $canRespond = ! $isOutgoing;
+                }
+            }
+
+            $user->friendship_status = $friendshipStatus;
+            $user->friendship_id = $friendshipId;
+            $user->can_cancel = $canCancel;
+            $user->can_respond = $canRespond;
 
             $distanceKm = round((float) $user->distance_km, 1);
             $user->distance_km = $distanceKm;

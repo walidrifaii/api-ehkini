@@ -6,31 +6,16 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 
 /**
- * Excludes self, friendships, and blocks using NOT EXISTS (scales better than large whereNotIn).
+ * Nearby exclusions: self and blocks only. Friends stay visible in Nearby.
  */
 final class DiscoverableUsersQuery
 {
-    public static function applySocialExclusions(Builder $query, User $viewer): Builder
+    public static function applyNearbyExclusions(Builder $query, User $viewer): Builder
     {
         $viewerId = (int) $viewer->id;
 
         return $query
             ->where('users.id', '!=', $viewerId)
-            ->whereNotExists(function ($sub) use ($viewerId) {
-                $sub->selectRaw('1')
-                    ->from('friendships')
-                    ->where(function ($friendship) use ($viewerId) {
-                        $friendship
-                            ->where(function ($q) use ($viewerId) {
-                                $q->whereColumn('friendships.sender_id', 'users.id')
-                                    ->where('friendships.receiver_id', $viewerId);
-                            })
-                            ->orWhere(function ($q) use ($viewerId) {
-                                $q->whereColumn('friendships.receiver_id', 'users.id')
-                                    ->where('friendships.sender_id', $viewerId);
-                            });
-                    });
-            })
             ->whereNotExists(function ($sub) use ($viewerId) {
                 $sub->selectRaw('1')
                     ->from('user_blocks')

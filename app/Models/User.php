@@ -28,6 +28,10 @@ class User extends Authenticatable
         'date_of_birth',
         'gender',
         'location',
+        'latitude',
+        'longitude',
+        'location_updated_at',
+        'location_sharing_enabled',
         'occupation',   // ✅ added
         'education',
         'about_me',
@@ -52,8 +56,12 @@ class User extends Authenticatable
     protected $casts = [
         'date_of_birth'    => 'date',
         'token_updated_at' => 'datetime',
+        'location_updated_at' => 'datetime',
+        'location_sharing_enabled' => 'boolean',
         'is_active'        => 'boolean', // ✅ important
         'country_id'       => 'integer',
+        'latitude'         => 'float',
+        'longitude'        => 'float',
     ];
 
     /**

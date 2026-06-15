@@ -63,6 +63,20 @@ namespace App\OpenApi\V2\Paths;
  * )
  *
  * @OA\Get(
+ *     path="/api/v2/users/nearby",
+ *     tags={"Users"},
+ *     summary="Nearby users by straight-line distance (v2, auth)",
+ *     security={{"sanctum":{}}},
+ *     @OA\Parameter(name="gender", in="query", @OA\Schema(type="string", enum={"male","female"})),
+ *     @OA\Parameter(name="radius_km", in="query", @OA\Schema(type="number", default=50, maximum=200)),
+ *     @OA\Parameter(name="latitude", in="query", @OA\Schema(type="number", format="float")),
+ *     @OA\Parameter(name="longitude", in="query", @OA\Schema(type="number", format="float")),
+ *     @OA\Parameter(name="per_page", in="query", @OA\Schema(type="integer", default=20, maximum=100)),
+ *     @OA\Response(response=200, description="Paginated nearby users ordered by distance_km"),
+ *     @OA\Response(response=422, description="Location required")
+ * )
+ *
+ * @OA\Get(
  *     path="/api/v2/users/search/last",
  *     tags={"Users"},
  *     summary="Get last saved user search filters (v2, auth)",

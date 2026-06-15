@@ -156,7 +156,7 @@ class AuthController extends \App\Http\Controllers\Api\V1\AuthController
             'platform' => ['nullable', 'in:android,ios,web'],
             'interests' => ['nullable', 'array'],
             'interests.*' => ['integer', 'exists:interests,id'],
-        ], $this->dateOfBirthValidationMessages(required: true));
+        ] + $this->coordinatesRules(), $this->dateOfBirthValidationMessages(required: true));
 
         $cc = $this->normalizeCountryCodeV2($data['country_code']);
         $ph = $this->normalizePhoneV2($data['phone']);
@@ -183,7 +183,7 @@ class AuthController extends \App\Http\Controllers\Api\V1\AuthController
             ]);
         }
 
-        $user = User::create([
+        $user = User::create($this->withLocationTimestamp([
             'first_name' => $data['first_name'],
             'last_name' => $data['last_name'],
             'country_code' => $cc,
@@ -193,6 +193,8 @@ class AuthController extends \App\Http\Controllers\Api\V1\AuthController
             'date_of_birth' => $data['date_of_birth'],
             'gender' => $data['gender'] ?? null,
             'location' => $data['location'] ?? null,
+            'latitude' => $data['latitude'] ?? null,
+            'longitude' => $data['longitude'] ?? null,
             'occupation' => $data['occupation'] ?? null,
             'education' => $data['education'] ?? null,
             'about_me' => $data['about_me'] ?? null,
@@ -200,7 +202,7 @@ class AuthController extends \App\Http\Controllers\Api\V1\AuthController
             'platform' => $data['platform'] ?? null,
             'token_updated_at' => !empty($data['fcm_token']) ? now() : null,
             'is_active' => 1,
-        ]);
+        ]));
 
         if (!empty($data['interests']) && is_array($data['interests'])) {
             $user->interests()->sync($data['interests']);

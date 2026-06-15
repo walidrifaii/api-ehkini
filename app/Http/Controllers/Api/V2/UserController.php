@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api\V2;
 use App\Models\Friendship;
 use App\Models\User;
 use App\Models\UserBlock;
+use App\Services\NearbyUsersService;
+use App\Services\UserLocationService;
 use Illuminate\Http\Request;
 
 class UserController extends \App\Http\Controllers\Api\V1\UserController
@@ -120,6 +122,70 @@ class UserController extends \App\Http\Controllers\Api\V1\UserController
             $user->is_same_country = $myCountryId !== null
                 && $user->country_id !== null
                 && (int) $user->country_id === (int) $myCountryId;
+
+            return $user;
+        });
+
+        return response()->json($users);
+    }
+
+    /**
+     * GET /api/v2/users/nearby (auth)
+     * Straight-line distance (Haversine), optional gender filter, ordered nearest first.
+     */
+    public function nearby(Request $request, NearbyUsersService $nearbyUsers, UserLocationService $locationService)
+    {
+        $authUser = auth('sanctum')->user();
+        if (! $authUser) {
+            return response()->json(['message' => api_trans('unauthenticated')], 401);
+        }
+
+        if (! $authUser->location_sharing_enabled) {
+            return response()->json([
+                'message' => api_trans('location_sharing_required'),
+            ], 422);
+        }
+
+        $data = $request->validate([
+            'gender' => ['nullable', 'in:male,female'],
+            'radius_km' => ['nullable', 'numeric', 'min:1', 'max:'.NearbyUsersService::MAX_RADIUS_KM],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'latitude' => ['nullable', 'numeric', 'between:-90,90'],
+            'longitude' => ['nullable', 'numeric', 'between:-180,180'],
+        ]);
+
+        $latitude = isset($data['latitude'])
+            ? (float) $data['latitude']
+            : ($authUser->latitude !== null ? (float) $authUser->latitude : null);
+        $longitude = isset($data['longitude'])
+            ? (float) $data['longitude']
+            : ($authUser->longitude !== null ? (float) $authUser->longitude : null);
+
+        if ($latitude === null || $longitude === null) {
+            return response()->json([
+                'message' => api_trans('location_required_for_nearby'),
+            ], 422);
+        }
+
+        if (isset($data['latitude'], $data['longitude'])) {
+            $locationService->enableAndUpdate($authUser, $latitude, $longitude);
+            $authUser->refresh();
+        }
+
+        $users = $nearbyUsers->paginateNearby($authUser, $latitude, $longitude, $data);
+
+        $users->getCollection()->transform(function ($user) {
+            $user->profile_image_url = $user->profile_image_url ?? null;
+            $user->friendship_status = 'none';
+            $user->friendship_id = null;
+            $user->can_cancel = false;
+            $user->can_respond = false;
+
+            $distanceKm = round((float) $user->distance_km, 1);
+            $user->distance_km = $distanceKm;
+            $user->distance = $distanceKm < 1.0
+                ? ((int) round($distanceKm * 1000)).' m away'
+                : $distanceKm.' km away';
 
             return $user;
         });

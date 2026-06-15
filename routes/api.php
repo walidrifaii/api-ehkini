@@ -143,6 +143,8 @@ Route::post('/forgot-password/verify-otp', [$controllers['auth'], 'verifyForgotP
         // ✅ Soft delete
         Route::post('/account/deactivate', [$controllers['auth'], 'deactivateAccount']);
         Route::post('/profile/update', [$controllers['auth'], 'updateProfile']);
+        Route::post('/profile/location', [$controllers['auth'], 'updateLocation']);
+        Route::post('/profile/location/disable', [$controllers['auth'], 'disableLocation']);
        
            Route::post('/profile/phone/send-otp-new', [$controllers['auth'], 'sendNewPhoneOtp']);
     Route::post('/profile/phone/confirm-new',  [$controllers['auth'], 'confirmNewPhoneWithOtp']);
@@ -232,6 +234,7 @@ Route::prefix('v2')->middleware('auth:sanctum')->group(function () {
     Route::post('/users/search/click', [\App\Http\Controllers\Api\V2\FriendshipController::class, 'recordSearchResultClick']);
     Route::delete('/users/search/click', [\App\Http\Controllers\Api\V2\FriendshipController::class, 'deleteSearchResultClick']);
     Route::get('/users/discover-by-country', [\App\Http\Controllers\Api\V2\UserController::class, 'discoverByCountry']);
+    Route::get('/users/nearby', [\App\Http\Controllers\Api\V2\UserController::class, 'nearby']);
 
 });
 // V2-only OTP registration flow.

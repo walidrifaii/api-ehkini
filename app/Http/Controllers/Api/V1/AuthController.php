@@ -7,6 +7,7 @@ use App\Models\Friendship;
 use App\Models\GiftTransaction;
 use App\Models\User;
 use App\Services\ImageCompressionService;
+use App\Services\UserLocationService;
 use App\Support\MediaStorage;
 use App\Services\WhatsAppNodeCampaignOtpService;
 use Illuminate\Http\Request;
@@ -53,7 +54,7 @@ class AuthController extends Controller
 
             'interests'     => ['nullable', 'array'],
             'interests.*'   => ['integer', 'exists:interests,id'],
-        ], array_merge(
+        ] + $this->coordinatesRules(), array_merge(
             $this->dateOfBirthValidationMessages(required: true),
             $this->profileImageValidationMessages()
         ));
@@ -94,7 +95,7 @@ class AuthController extends Controller
                 }
             }
 
-            $user = User::create([
+            $user = User::create($this->withLocationTimestamp([
                 'first_name'       => $data['first_name'],
                 'last_name'        => $data['last_name'],
                 'profile_image'    => $profileImagePath,
@@ -108,6 +109,8 @@ class AuthController extends Controller
                 'gender'           => $data['gender'] ?? null,
 
                 'location'         => $data['location'] ?? null,
+                'latitude'         => $data['latitude'] ?? null,
+                'longitude'        => $data['longitude'] ?? null,
                 'occupation'       => $data['occupation'] ?? null,
                 'education'        => $data['education'] ?? null,
                 'about_me'         => $data['about_me'] ?? null,
@@ -117,7 +120,7 @@ class AuthController extends Controller
                 'token_updated_at' => !empty($data['fcm_token']) ? now() : null,
 
                 'is_active'        => 1,
-            ]);
+            ]));
 
             if (!empty($data['interests']) && is_array($data['interests'])) {
                 $user->interests()->sync($data['interests']);
@@ -213,7 +216,7 @@ class AuthController extends Controller
             'fcm_token'    => ['nullable', 'string', 'max:512'],
             'platform'     => ['nullable', 'in:android,ios,web'],
             'location'     => ['nullable', 'string', 'max:255'],
-        ]);
+        ] + $this->coordinatesRules());
 
         $data['country_code'] = $this->normalizeCountryCode($data['country_code']);
         $data['phone'] = $this->normalizePhone($data['phone']);
@@ -242,6 +245,18 @@ class AuthController extends Controller
 
         if (array_key_exists('location', $data) && $data['location'] !== null) {
             $update['location'] = $data['location'];
+        }
+
+        if (array_key_exists('latitude', $data) && $data['latitude'] !== null) {
+            $update['latitude'] = $data['latitude'];
+        }
+
+        if (array_key_exists('longitude', $data) && $data['longitude'] !== null) {
+            $update['longitude'] = $data['longitude'];
+        }
+
+        if (isset($update['latitude'], $update['longitude'])) {
+            $update['location_updated_at'] = now();
         }
 
         if (!empty($update)) {
@@ -292,6 +307,10 @@ class AuthController extends Controller
 
                 'gender' => $user->gender,
                 'location' => $user->location,
+                'latitude' => $user->latitude,
+                'longitude' => $user->longitude,
+                'location_updated_at' => $user->location_updated_at,
+                'location_sharing_enabled' => (bool) $user->location_sharing_enabled,
 
                 'occupation' => $user->occupation,
                 'education' => $user->education,
@@ -359,6 +378,7 @@ class AuthController extends Controller
             if (! empty($updateFields['fcm_token'])) {
                 $updateFields['token_updated_at'] = now();
             }
+            $updateFields = $this->withLocationTimestamp($updateFields);
             if (!empty($updateFields)) {
                 $user->update($updateFields);
             }
@@ -393,6 +413,101 @@ class AuthController extends Controller
         return response()->json([
             'message' => 'Profile updated successfully.',
             'user'    => $userData,
+        ]);
+    }
+
+    /**
+     * POST /api/v1/profile/location
+     * POST /api/v2/profile/location
+     * Lightweight GPS sync (no full profile payload).
+     */
+    public function updateLocation(Request $request, UserLocationService $locationService)
+    {
+        $user = $request->user();
+        if (! $user) {
+            return response()->json(['message' => api_trans('unauthenticated')], 401);
+        }
+
+        if ((int) $user->is_active === 0) {
+            return response()->json(['message' => api_trans('account_deactivated')], 403);
+        }
+
+        $data = $request->validate([
+            'latitude' => ['required', 'numeric', 'between:-90,90'],
+            'longitude' => ['required', 'numeric', 'between:-180,180'],
+            'location' => ['nullable', 'string', 'max:255'],
+            'force' => ['nullable', 'boolean'],
+        ]);
+
+        $force = filter_var($data['force'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+        if ($force) {
+            $user->update([
+                'latitude' => (float) $data['latitude'],
+                'longitude' => (float) $data['longitude'],
+                'location' => $data['location'] ?? $user->location,
+                'location_sharing_enabled' => true,
+                'location_updated_at' => now(),
+            ]);
+            $user->refresh();
+            $result = [
+                'updated' => true,
+                'latitude' => (float) $user->latitude,
+                'longitude' => (float) $user->longitude,
+                'location' => $user->location,
+                'location_sharing_enabled' => true,
+                'location_updated_at' => $user->location_updated_at,
+            ];
+        } else {
+            $result = $locationService->enableAndUpdate(
+                $user,
+                (float) $data['latitude'],
+                (float) $data['longitude'],
+                $data['location'] ?? null
+            );
+        }
+
+        return response()->json([
+            'message' => api_trans($result['updated']
+                ? 'location_updated_successfully'
+                : 'location_unchanged'),
+            'updated' => $result['updated'],
+            'location' => [
+                'latitude' => $result['latitude'],
+                'longitude' => $result['longitude'],
+                'location' => $result['location'],
+                'location_sharing_enabled' => $result['location_sharing_enabled'],
+                'location_updated_at' => $result['location_updated_at'],
+            ],
+        ]);
+    }
+
+    /**
+     * POST /api/v1/profile/location/disable
+     * POST /api/v2/profile/location/disable
+     */
+    public function disableLocation(Request $request, UserLocationService $locationService)
+    {
+        $user = $request->user();
+        if (! $user) {
+            return response()->json(['message' => api_trans('unauthenticated')], 401);
+        }
+
+        if ((int) $user->is_active === 0) {
+            return response()->json(['message' => api_trans('account_deactivated')], 403);
+        }
+
+        $result = $locationService->disable($user);
+
+        return response()->json([
+            'message' => api_trans('location_sharing_disabled'),
+            'location' => [
+                'latitude' => $result['latitude'],
+                'longitude' => $result['longitude'],
+                'location' => $result['location'],
+                'location_sharing_enabled' => $result['location_sharing_enabled'],
+                'location_updated_at' => $result['location_updated_at'],
+            ],
         ]);
     }
 
@@ -435,7 +550,38 @@ class AuthController extends Controller
 
             'fcm_token'     => ['nullable', 'string', 'max:512'],
             'platform'      => ['nullable', 'in:android,ios,web'],
+
+            ...$this->coordinatesRules(),
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function coordinatesRules(): array
+    {
+        return [
+            'latitude' => ['nullable', 'numeric', 'between:-90,90'],
+            'longitude' => ['nullable', 'numeric', 'between:-180,180'],
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    protected function withLocationTimestamp(array $data): array
+    {
+        if (
+            array_key_exists('latitude', $data)
+            && array_key_exists('longitude', $data)
+            && $data['latitude'] !== null
+            && $data['longitude'] !== null
+        ) {
+            $data['location_updated_at'] = now();
+        }
+
+        return $data;
     }
 
     /**

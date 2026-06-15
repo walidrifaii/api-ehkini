@@ -37,7 +37,7 @@ final class GeoDistance
     public static function haversineSql(string $latColumn, string $lngColumn): string
     {
         return sprintf(
-            '(%F * acos(LEAST(1, GREATEST(-1, cos(radians(?)) * cos(radians(%s)) * cos(radians(%s) - radians(?)) + sin(radians(?)) * sin(radians(%s)))))',
+            '(%F * acos(LEAST(1, GREATEST(-1, cos(radians(?)) * cos(radians(%s)) * cos(radians(%s) - radians(?)) + sin(radians(?)) * sin(radians(%s))))))',
             self::EARTH_RADIUS_KM,
             $latColumn,
             $lngColumn,

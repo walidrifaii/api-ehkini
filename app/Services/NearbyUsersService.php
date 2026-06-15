@@ -58,7 +58,7 @@ class NearbyUsersService
 
         $query
             ->whereRaw("{$haversine} <= ?", array_merge($bindings, [$radiusKm]))
-            ->orderBy('distance_km')
+            ->orderByRaw('distance_km ASC')
             ->orderBy('users.id');
 
         return $query

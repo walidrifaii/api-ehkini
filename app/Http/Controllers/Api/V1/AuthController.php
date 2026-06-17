@@ -459,6 +459,20 @@ class AuthController extends Controller
                 'location_updated_at' => $user->location_updated_at,
             ];
         } else {
+            if (! $user->location_sharing_enabled) {
+                return response()->json([
+                    'message' => api_trans('location_sharing_disabled'),
+                    'updated' => false,
+                    'location' => [
+                        'latitude' => $user->latitude !== null ? (float) $user->latitude : null,
+                        'longitude' => $user->longitude !== null ? (float) $user->longitude : null,
+                        'location' => $user->location,
+                        'location_sharing_enabled' => false,
+                        'location_updated_at' => $user->location_updated_at,
+                    ],
+                ]);
+            }
+
             $result = $locationService->enableAndUpdate(
                 $user,
                 (float) $data['latitude'],

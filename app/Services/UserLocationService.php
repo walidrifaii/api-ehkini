@@ -28,12 +28,11 @@ class UserLocationService
      */
     public function enableAndUpdate(User $user, float $latitude, float $longitude, ?string $location = null): array
     {
-        if (! $this->shouldPersist($user, $latitude, $longitude)) {
-            if (! $user->location_sharing_enabled) {
-                $user->update(['location_sharing_enabled' => true]);
-                $user->refresh();
-            }
+        if (! $user->location_sharing_enabled) {
+            return $this->payload($user, updated: false);
+        }
 
+        if (! $this->shouldPersist($user, $latitude, $longitude)) {
             return $this->payload($user, updated: false);
         }
 

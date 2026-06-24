@@ -105,8 +105,27 @@ class OtpDeliveryService
         return [
             'ok' => false,
             'error' => 'no_otp_channel_available',
+            'error_summary' => $this->summarizeAttempts($attempts),
             'attempts' => $attempts,
         ];
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $attempts
+     */
+    private function summarizeAttempts(array $attempts): ?string
+    {
+        foreach ($attempts as $attempt) {
+            $result = $attempt['result'] ?? [];
+            if (! empty($result['error_summary'])) {
+                return (string) $result['error_summary'];
+            }
+            if (! empty($result['mc_message'])) {
+                return (string) $result['mc_message'];
+            }
+        }
+
+        return null;
     }
 
     public function verifyOtp(string $token, string $purpose, string $phoneE164, string $code): array

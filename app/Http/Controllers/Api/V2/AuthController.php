@@ -7,6 +7,7 @@ use App\Services\OtpDeliveryService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 class AuthController extends \App\Http\Controllers\Api\V1\AuthController
@@ -98,10 +99,24 @@ class AuthController extends \App\Http\Controllers\Api\V1\AuthController
         }
 
         if (!($send['ok'] ?? false)) {
-            return response()->json([
+            Log::warning('otp.register_send_failed', [
+                'channel' => $data['channel'] ?? 'auto',
+                'phone_last4' => substr($ph, -4),
+                'error' => $send['error'] ?? null,
+                'error_summary' => $send['error_summary'] ?? null,
+            ]);
+
+            $payload = [
                 'message' => api_trans('failed_to_send_otp'),
-                'error' => $send,
-            ], 502);
+                'error' => $send['error'] ?? 'otp_send_failed',
+                'error_summary' => $send['error_summary'] ?? null,
+            ];
+
+            if (config('app.debug')) {
+                $payload['debug'] = $send;
+            }
+
+            return response()->json($payload, 502);
         }
 
         return response()->json([

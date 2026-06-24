@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Message Central VerifyNow API (v3).
@@ -40,9 +41,10 @@ class MessageCentralOtpService
         $flowType = strtoupper($flowType);
         $otpLength = (int) ($cfg['otp_length'] ?? 6);
 
-        // Official v3 cURL: countryCode, flowType, mobileNumber (+ otpLength, type=OTP).
+        // VerifyNow v3: countryCode, customerId, flowType, mobileNumber, otpLength, type=OTP
         $v3Query = [
             'countryCode' => $countryCodeDigits,
+            'customerId' => $customerId,
             'flowType' => $flowType,
             'mobileNumber' => $mobileNumber,
             'otpLength' => $otpLength,
@@ -50,28 +52,27 @@ class MessageCentralOtpService
         ];
 
         $v3 = $this->postWithQuery($cfg, '/verification/v3/send', $v3Query);
-        $v3Result = $this->parseSendResponse($v3['status'], $v3['json'], $v3['body']);
+        $v3Result = $this->parseSendResponse($v3['status'], $v3['json'], $v3['body'], $v3['query'] ?? $v3Query);
         if ($v3Result['ok'] ?? false) {
             $v3Result['flow_type'] = $flowType;
 
             return $v3Result;
         }
 
-        // Some accounts also require customerId on send.
-        $v3WithCustomer = $this->postWithQuery($cfg, '/verification/v3/send', [
-            ...$v3Query,
-            'customerId' => $customerId,
-        ]);
-        $v3CustomerResult = $this->parseSendResponse(
-            $v3WithCustomer['status'],
-            $v3WithCustomer['json'],
-            $v3WithCustomer['body'],
-        );
-        if ($v3CustomerResult['ok'] ?? false) {
-            $v3CustomerResult['flow_type'] = $flowType;
+        $this->logSendFailure('v3', $countryCodeDigits, $mobileNumber, $v3Result);
 
-            return $v3CustomerResult;
+        // Retry v3 without customerId (some docs examples omit it).
+        $v3NoCustomer = $v3Query;
+        unset($v3NoCustomer['customerId']);
+        $v3b = $this->postWithQuery($cfg, '/verification/v3/send', $v3NoCustomer);
+        $v3bResult = $this->parseSendResponse($v3b['status'], $v3b['json'], $v3b['body'], $v3b['query'] ?? $v3NoCustomer);
+        if ($v3bResult['ok'] ?? false) {
+            $v3bResult['flow_type'] = $flowType;
+
+            return $v3bResult;
         }
+
+        $this->logSendFailure('v3-no-customerId', $countryCodeDigits, $mobileNumber, $v3bResult);
 
         // Fallback v2.
         $v2 = $this->postWithQuery($cfg, '/verification/v2/verification/send', [
@@ -80,22 +81,33 @@ class MessageCentralOtpService
             'mobileNumber' => $mobileNumber,
             'flowType' => $flowType,
         ]);
-        $v2Result = $this->parseSendResponse($v2['status'], $v2['json'], $v2['body']);
+        $v2Result = $this->parseSendResponse($v2['status'], $v2['json'], $v2['body'], $v2['query'] ?? []);
         if ($v2Result['ok'] ?? false) {
             $v2Result['flow_type'] = $flowType;
 
             return $v2Result;
         }
 
-        return [
+        $this->logSendFailure('v2', $countryCodeDigits, $mobileNumber, $v2Result);
+
+        $failure = [
             'ok' => false,
             'error' => 'message_central_send_failed',
+            'error_summary' => $this->summarizeFailure($v3Result, $v3bResult, $v2Result),
             'attempts' => [
                 ['version' => 'v3', 'result' => $v3Result],
-                ['version' => 'v3+customerId', 'result' => $v3CustomerResult],
+                ['version' => 'v3-no-customerId', 'result' => $v3bResult],
                 ['version' => 'v2', 'result' => $v2Result],
             ],
         ];
+
+        Log::warning('message_central.sms_send_failed', [
+            'country_code' => $countryCodeDigits,
+            'phone_last4' => substr($mobileNumber, -4),
+            'summary' => $failure['error_summary'],
+        ]);
+
+        return $failure;
     }
 
     public function validateOtp(string $verificationId, string $code, string $flowType = 'SMS'): array
@@ -139,20 +151,31 @@ class MessageCentralOtpService
     }
 
     /**
-     * @return array{status:int, json:mixed, body:string}
+     * @return array{status:int, json:mixed, body:string, query:array<string, mixed>, url:string}
      */
     private function postWithQuery(array $cfg, string $path, array $query): array
     {
+        $baseUrl = rtrim((string) $cfg['base_url'], '/');
+        $url = $baseUrl . $path;
+
         try {
             $response = Http::withHeaders($this->headers($cfg))
                 ->withQueryParameters($query)
                 ->timeout(25)
-                ->post(rtrim((string) $cfg['base_url'], '/') . $path);
+                ->post($url);
         } catch (\Throwable $e) {
+            Log::error('message_central.http_exception', [
+                'url' => $url,
+                'query' => $query,
+                'message' => $e->getMessage(),
+            ]);
+
             return [
                 'status' => 0,
                 'json' => null,
                 'body' => $e->getMessage(),
+                'query' => $query,
+                'url' => $url,
             ];
         }
 
@@ -160,13 +183,16 @@ class MessageCentralOtpService
             'status' => $response->status(),
             'json' => $response->json(),
             'body' => (string) $response->body(),
+            'query' => $query,
+            'url' => $url,
         ];
     }
 
     /**
+     * @param  array<string, mixed>  $query
      * @return array<string, mixed>
      */
-    private function parseSendResponse(int $httpStatus, mixed $json, string $rawBody): array
+    private function parseSendResponse(int $httpStatus, mixed $json, string $rawBody, array $query = []): array
     {
         if (! is_array($json)) {
             return [
@@ -174,18 +200,23 @@ class MessageCentralOtpService
                 'error' => 'message_central_send_failed',
                 'http' => $httpStatus,
                 'body' => $rawBody,
+                'request' => $query,
             ];
         }
 
         $responseCode = (int) (data_get($json, 'responseCode') ?? data_get($json, 'data.responseCode') ?? 0);
         $message = strtoupper((string) (data_get($json, 'message') ?? ''));
+        $mcError = (string) (data_get($json, 'data.errorMessage') ?? data_get($json, 'errorMessage') ?? '');
 
         if ($httpStatus >= 400 || ($responseCode !== 0 && $responseCode !== 200 && $message !== 'SUCCESS')) {
             return [
                 'ok' => false,
                 'error' => 'message_central_send_failed',
                 'http' => $httpStatus,
+                'response_code' => $responseCode,
+                'mc_message' => $mcError !== '' ? $mcError : (data_get($json, 'message') ?? null),
                 'body' => $json,
+                'request' => $query,
             ];
         }
 
@@ -197,6 +228,7 @@ class MessageCentralOtpService
                 'ok' => false,
                 'error' => 'message_central_no_verification_id',
                 'body' => $json,
+                'request' => $query,
             ];
         }
 
@@ -271,5 +303,48 @@ class MessageCentralOtpService
         }
 
         return str_starts_with($customerId, 'C-') ? $customerId : ('C-' . $customerId);
+    }
+
+    private function logSendFailure(string $version, string $cc, string $phone, array $result): void
+    {
+        Log::info('message_central.sms_attempt_failed', [
+            'version' => $version,
+            'country_code' => $cc,
+            'phone_last4' => substr($phone, -4),
+            'error' => $result['error'] ?? null,
+            'http' => $result['http'] ?? null,
+            'response_code' => $result['response_code'] ?? null,
+            'mc_message' => $result['mc_message'] ?? null,
+        ]);
+    }
+
+    private function summarizeFailure(array ...$results): string
+    {
+        foreach ($results as $result) {
+            if (! empty($result['mc_message'])) {
+                return (string) $result['mc_message'];
+            }
+            $code = (int) ($result['response_code'] ?? 0);
+            if ($code === 501) {
+                return 'Invalid Message Central customer ID (501).';
+            }
+            if ($code === 511) {
+                return 'Invalid country code for SMS (511).';
+            }
+            if ($code === 800) {
+                return 'Message Central rate limit reached (800).';
+            }
+            if (($result['error'] ?? '') === 'message_central_connection_failed') {
+                return 'Could not connect to Message Central: '.($result['detail'] ?? 'unknown');
+            }
+        }
+
+        $first = $results[0] ?? [];
+        $http = (int) ($first['http'] ?? 0);
+        if ($http > 0) {
+            return 'Message Central HTTP '.$http;
+        }
+
+        return 'Message Central rejected the SMS request. Run: php artisan otp:test-sms +961 YOURPHONE';
     }
 }

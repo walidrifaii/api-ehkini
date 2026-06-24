@@ -9,7 +9,7 @@ use App\Models\User;
 use App\Services\ImageCompressionService;
 use App\Services\UserLocationService;
 use App\Support\MediaStorage;
-use App\Services\WhatsAppNodeCampaignOtpService;
+use App\Services\OtpDeliveryService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
@@ -771,11 +771,12 @@ class AuthController extends Controller
     // FORGOT PASSWORD OTP FLOW
     // ---------------------------
 
-    public function forgotPasswordSendOtp(Request $request, WhatsAppNodeCampaignOtpService $otp)
+    public function forgotPasswordSendOtp(Request $request, OtpDeliveryService $otp)
     {
         $data = $request->validate([
             'country_code' => ['required', 'string', 'max:6'],
             'phone'        => ['required', 'string', 'max:30'],
+            'channel'      => ['nullable', 'string', 'in:whatsapp,whatsapp_node,sms,whatsapp_mc'],
         ]);
 
         $cc = $this->normalizeCountryCode($data['country_code']);
@@ -788,9 +789,7 @@ class AuthController extends Controller
             return response()->json(['message' => 'If the phone exists, we sent a code.'], 200);
         }
 
-        $code = random_int(100000, 999999);
-
-        $send = $otp->sendOtpViaNodeCampaign($phoneE164, $code);
+        $send = $otp->sendOtp('forgot_password', $cc, $ph, $data['channel'] ?? null);
         if (!($send['ok'] ?? false)) {
             return response()->json([
                 'message' => 'Failed to send OTP.',
@@ -798,16 +797,15 @@ class AuthController extends Controller
             ], 502);
         }
 
-        $otpToken = $otp->buildOtpToken('forgot_password', $phoneE164, $code);
-
         return response()->json([
             'message'    => 'OTP sent.',
-            'otp_token'  => $otpToken,
+            'otp_token'  => $send['otp_token'],
+            'channel'    => $send['channel'] ?? null,
             'expires_in' => $otp->ttlSeconds(),
         ], 200);
     }
 
-    public function verifyForgotPasswordOtp(Request $request, WhatsAppNodeCampaignOtpService $otp)
+    public function verifyForgotPasswordOtp(Request $request, OtpDeliveryService $otp)
     {
         $data = $request->validate([
             'country_code' => ['required', 'string', 'max:6'],
@@ -820,7 +818,7 @@ class AuthController extends Controller
         $ph = $this->normalizePhone($data['phone']);
         $phoneE164 = $cc . $ph;
 
-        $check = $otp->verifyOtpToken($data['otp_token'], 'forgot_password', $phoneE164, $data['code']);
+        $check = $otp->verifyOtp($data['otp_token'], 'forgot_password', $phoneE164, $data['code']);
         if (!($check['ok'] ?? false)) {
             return response()->json([
                 'message' => 'Invalid OTP.',
@@ -838,7 +836,7 @@ class AuthController extends Controller
         ], 200);
     }
 
-    public function resetPasswordAfterOtp(Request $request, WhatsAppNodeCampaignOtpService $otp)
+    public function resetPasswordAfterOtp(Request $request, OtpDeliveryService $otp)
     {
         $data = $request->validate([
             'country_code'              => ['required', 'string', 'max:6'],
@@ -1083,13 +1081,14 @@ class AuthController extends Controller
     
     
     // updated phone numerb 
-    public function sendNewPhoneOtp(Request $request, WhatsAppNodeCampaignOtpService $otp)
+    public function sendNewPhoneOtp(Request $request, OtpDeliveryService $otp)
 {
     $user = $request->user();
     if (!$user) return response()->json(['message' => 'Unauthenticated.'], 401);
     $data = $request->validate([
         'new_country_code' => ['required', 'string', 'max:6'],
         'new_phone'        => ['required', 'string', 'max:30'],
+        'channel'          => ['nullable', 'string', 'in:whatsapp,whatsapp_node,sms,whatsapp_mc'],
     ]);
     $newCc = $this->normalizeCountryCode($data['new_country_code']);
     $newPh = $this->normalizePhone($data['new_phone']);
@@ -1102,24 +1101,22 @@ class AuthController extends Controller
     if ($exists) {
         return response()->json(['message' => 'Phone already exists.'], 422);
     }
-    $code = random_int(100000, 999999);
-    $send = $otp->sendOtpViaNodeCampaign($newE164, $code);
+    $send = $otp->sendOtp('update_phone_new', $newCc, $newPh, $data['channel'] ?? null);
     if (!($send['ok'] ?? false)) {
         return response()->json([
             'message' => 'Failed to send OTP to new phone.',
             'error'   => $send
         ], 502);
     }
-    // token tied to new phone
-    $otpToken = $otp->buildOtpToken('update_phone_new', $newE164, $code);
     return response()->json([
          'success' => true,
         'message' => 'OTP sent to new phone.',
-        'otp_token' => $otpToken,
+        'otp_token' => $send['otp_token'],
+        'channel' => $send['channel'] ?? null,
         'expires_in' => $otp->ttlSeconds(),
     ], 200);
 }
-public function confirmNewPhoneWithOtp(Request $request, WhatsAppNodeCampaignOtpService $otp)
+public function confirmNewPhoneWithOtp(Request $request, OtpDeliveryService $otp)
 {
     $user = $request->user();
     if (!$user) return response()->json(['message' => 'Unauthenticated.'], 401);
@@ -1132,7 +1129,7 @@ public function confirmNewPhoneWithOtp(Request $request, WhatsAppNodeCampaignOtp
     $newCc = $this->normalizeCountryCode($data['new_country_code']);
     $newPh = $this->normalizePhone($data['new_phone']);
     $newE164 = $newCc . $newPh;
-    $check = $otp->verifyOtpToken($data['otp_token'], 'update_phone_new', $newE164, $data['code']);
+    $check = $otp->verifyOtp($data['otp_token'], 'update_phone_new', $newE164, $data['code']);
     if (!($check['ok'] ?? false)) {
         return response()->json([
             'message' => 'Invalid OTP.',
@@ -1155,7 +1152,7 @@ public function confirmNewPhoneWithOtp(Request $request, WhatsAppNodeCampaignOtp
 
 
 // update Password 
-public function sendPasswordOtp(Request $request, WhatsAppNodeCampaignOtpService $otp)
+public function sendPasswordOtp(Request $request, OtpDeliveryService $otp)
 {
     $user = $request->user();
     if (! $user) {
@@ -1169,6 +1166,7 @@ public function sendPasswordOtp(Request $request, WhatsAppNodeCampaignOtpService
     // Recommended: require current password before sending OTP
     $data = $request->validate([
         'current_password' => ['required', 'string'],
+        'channel' => ['nullable', 'string', 'in:whatsapp,whatsapp_node,sms,whatsapp_mc'],
     ]);
 
     if (!Hash::check($data['current_password'], $user->password)) {
@@ -1179,12 +1177,10 @@ public function sendPasswordOtp(Request $request, WhatsAppNodeCampaignOtpService
         ], 422);
     }
 
-    $phoneE164 = $this->normalizeCountryCode((string) $user->country_code)
-        . $this->normalizePhone((string) $user->phone);
+    $cc = $this->normalizeCountryCode((string) $user->country_code);
+    $ph = $this->normalizePhone((string) $user->phone);
 
-    $code = random_int(100000, 999999);
-
-    $send = $otp->sendOtpViaNodeCampaign($phoneE164, $code);
+    $send = $otp->sendOtp('update_password', $cc, $ph, $data['channel'] ?? null);
     if (!($send['ok'] ?? false)) {
         return response()->json([
             'success' => false,
@@ -1193,17 +1189,16 @@ public function sendPasswordOtp(Request $request, WhatsAppNodeCampaignOtpService
         ], 502);
     }
 
-    $otpToken = $otp->buildOtpToken('update_password', $phoneE164, $code);
-
     return response()->json([
         'success' => true,
         'message' => 'OTP sent.',
-        'otp_token' => $otpToken,
+        'otp_token' => $send['otp_token'],
+        'channel' => $send['channel'] ?? null,
         'expires_in' => $otp->ttlSeconds(),
     ], 200);
 }
 
-public function updatePasswordWithOtp(Request $request, WhatsAppNodeCampaignOtpService $otp)
+public function updatePasswordWithOtp(Request $request, OtpDeliveryService $otp)
 {
     $user = $request->user();
     if (! $user) {
@@ -1224,7 +1219,7 @@ public function updatePasswordWithOtp(Request $request, WhatsAppNodeCampaignOtpS
     $phoneE164 = $this->normalizeCountryCode((string) $user->country_code)
         . $this->normalizePhone((string) $user->phone);
 
-    $check = $otp->verifyOtpToken($data['otp_token'], 'update_password', $phoneE164, $data['code']);
+    $check = $otp->verifyOtp($data['otp_token'], 'update_password', $phoneE164, $data['code']);
     if (!($check['ok'] ?? false)) {
         return response()->json([
             'success' => false,

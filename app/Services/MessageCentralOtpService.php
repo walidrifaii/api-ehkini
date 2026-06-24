@@ -6,7 +6,8 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Message Central VerifyNow API (v3).
+ * Message Central VerifyNow — SMS OTP only.
+ * WhatsApp OTP uses the separate WhatsApp node, not Message Central.
  *
  * @see https://www.messagecentral.com/product/verify-now/api
  */
@@ -32,62 +33,57 @@ class MessageCentralOtpService
 
     public function sendOtp(string $countryCodeDigits, string $mobileNumber, string $flowType = 'SMS'): array
     {
+        // This project uses Message Central for SMS OTP only.
+        $flowType = 'SMS';
+
         if (! $this->hasCredentials()) {
             return ['ok' => false, 'error' => 'message_central_not_configured'];
         }
 
         $cfg = config('otp.message_central');
         $customerId = $this->normalizeCustomerId((string) $cfg['customer_id']);
-        $flowType = strtoupper($flowType);
         $otpLength = (int) ($cfg['otp_length'] ?? 6);
 
-        // VerifyNow v3: countryCode, customerId, flowType, mobileNumber, otpLength, type=OTP
-        $v3Query = [
+        // Attempt 1 — full v3 (customerId + otpLength).
+        $v3Full = [
             'countryCode' => $countryCodeDigits,
             'customerId' => $customerId,
-            'flowType' => $flowType,
+            'flowType' => 'SMS',
             'mobileNumber' => $mobileNumber,
             'otpLength' => $otpLength,
-            'type' => 'OTP',
         ];
-
-        $v3 = $this->postWithQuery($cfg, '/verification/v3/send', $v3Query);
-        $v3Result = $this->parseSendResponse($v3['status'], $v3['json'], $v3['body'], $v3['query'] ?? $v3Query);
+        $v3 = $this->postWithQuery($cfg, '/verification/v3/send', $v3Full);
+        $v3Result = $this->parseSendResponse($v3['status'], $v3['json'], $v3['body'], $v3['query'] ?? $v3Full);
         if ($v3Result['ok'] ?? false) {
-            $v3Result['flow_type'] = $flowType;
-
-            return $v3Result;
+            return $this->successSendResult($v3Result);
         }
+        $this->logSendFailure('v3-full', $countryCodeDigits, $mobileNumber, $v3Result);
 
-        $this->logSendFailure('v3', $countryCodeDigits, $mobileNumber, $v3Result);
-
-        // Retry v3 without customerId (some docs examples omit it).
-        $v3NoCustomer = $v3Query;
-        unset($v3NoCustomer['customerId']);
-        $v3b = $this->postWithQuery($cfg, '/verification/v3/send', $v3NoCustomer);
-        $v3bResult = $this->parseSendResponse($v3b['status'], $v3b['json'], $v3b['body'], $v3b['query'] ?? $v3NoCustomer);
+        // Attempt 2 — official cURL example (countryCode, flowType, mobileNumber only).
+        $v3Minimal = [
+            'countryCode' => $countryCodeDigits,
+            'flowType' => 'SMS',
+            'mobileNumber' => $mobileNumber,
+        ];
+        $v3b = $this->postWithQuery($cfg, '/verification/v3/send', $v3Minimal);
+        $v3bResult = $this->parseSendResponse($v3b['status'], $v3b['json'], $v3b['body'], $v3b['query'] ?? $v3Minimal);
         if ($v3bResult['ok'] ?? false) {
-            $v3bResult['flow_type'] = $flowType;
-
-            return $v3bResult;
+            return $this->successSendResult($v3bResult);
         }
+        $this->logSendFailure('v3-minimal', $countryCodeDigits, $mobileNumber, $v3bResult);
 
-        $this->logSendFailure('v3-no-customerId', $countryCodeDigits, $mobileNumber, $v3bResult);
-
-        // Fallback v2.
-        $v2 = $this->postWithQuery($cfg, '/verification/v2/verification/send', [
+        // Attempt 3 — v2 fallback.
+        $v2Query = [
             'countryCode' => $countryCodeDigits,
             'customerId' => $customerId,
             'mobileNumber' => $mobileNumber,
-            'flowType' => $flowType,
-        ]);
-        $v2Result = $this->parseSendResponse($v2['status'], $v2['json'], $v2['body'], $v2['query'] ?? []);
+            'flowType' => 'SMS',
+        ];
+        $v2 = $this->postWithQuery($cfg, '/verification/v2/verification/send', $v2Query);
+        $v2Result = $this->parseSendResponse($v2['status'], $v2['json'], $v2['body'], $v2['query'] ?? $v2Query);
         if ($v2Result['ok'] ?? false) {
-            $v2Result['flow_type'] = $flowType;
-
-            return $v2Result;
+            return $this->successSendResult($v2Result);
         }
-
         $this->logSendFailure('v2', $countryCodeDigits, $mobileNumber, $v2Result);
 
         $failure = [
@@ -95,8 +91,8 @@ class MessageCentralOtpService
             'error' => 'message_central_send_failed',
             'error_summary' => $this->summarizeFailure($v3Result, $v3bResult, $v2Result),
             'attempts' => [
-                ['version' => 'v3', 'result' => $v3Result],
-                ['version' => 'v3-no-customerId', 'result' => $v3bResult],
+                ['version' => 'v3-full', 'result' => $v3Result],
+                ['version' => 'v3-minimal', 'result' => $v3bResult],
                 ['version' => 'v2', 'result' => $v2Result],
             ],
         ];
@@ -117,9 +113,9 @@ class MessageCentralOtpService
         }
 
         $cfg = config('otp.message_central');
-        $flowType = strtoupper($flowType);
+        $flowType = 'SMS';
 
-        // Official v3: POST /verification/v3/validateOtp/ ?verificationId=&code=&flowType=
+        // POST /verification/v3/validateOtp/ with flowType=SMS
         $query = [
             'verificationId' => $verificationId,
             'code' => $code,
@@ -303,6 +299,13 @@ class MessageCentralOtpService
         }
 
         return str_starts_with($customerId, 'C-') ? $customerId : ('C-' . $customerId);
+    }
+
+    private function successSendResult(array $result): array
+    {
+        $result['flow_type'] = 'SMS';
+
+        return $result;
     }
 
     private function logSendFailure(string $version, string $cc, string $phone, array $result): void

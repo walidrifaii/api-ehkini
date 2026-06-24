@@ -7,7 +7,7 @@ return [
     'ttl_seconds' => (int) env('OTP_TTL_SECONDS', 300),
 
     /*
-    | SMS  → Message Central VerifyNow (OTP_MESSAGE_CENTRAL_SMS_ENABLED)
+    | Message Central = VerifyNow SMS OTP only (flowType=SMS)
     | WhatsApp → WhatsApp node only (OTP_WHATSAPP_NODE_ENABLED)
     |
     | OTP_CHANNEL: auto | whatsapp_node | sms

@@ -142,10 +142,15 @@ class AuthController extends \App\Http\Controllers\Api\V1\AuthController
 
         $check = $otp->verifyOtp($data['otp_token'], 'register', $phoneE164, $data['code']);
         if (!($check['ok'] ?? false)) {
-            return response()->json([
+            $payload = [
                 'message' => 'Invalid OTP.',
                 'error' => $check['error'] ?? 'invalid_otp',
-            ], 422);
+            ];
+            if (config('app.debug')) {
+                $payload['debug'] = $check;
+            }
+
+            return response()->json($payload, 422);
         }
 
         $verifiedToken = $this->buildVerifiedTokenV2('register_verified', $phoneE164, $otp->ttlSeconds());

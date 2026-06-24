@@ -85,7 +85,8 @@ class OtpDeliveryService
                 continue;
             }
 
-            $send = $this->messageCentral->sendOtp($ccDigits, $mobileNumber, 'SMS');
+            $mobileDigits = ltrim(preg_replace('/\D+/', '', $mobileNumber) ?? '', '0');
+            $send = $this->messageCentral->sendOtp($ccDigits, $mobileDigits, 'SMS');
             $attempts[] = ['channel' => $resolvedChannel, 'result' => $send];
 
             if ($send['ok'] ?? false) {
@@ -96,6 +97,9 @@ class OtpDeliveryService
                         $phoneE164,
                         (string) $send['verification_id'],
                         'SMS',
+                        $ccDigits,
+                        $mobileDigits,
+                        isset($send['auth_token']) ? (string) $send['auth_token'] : null,
                     ),
                     'channel' => 'sms',
                 ];
@@ -148,10 +152,17 @@ class OtpDeliveryService
         $provider = (string) ($payload['provider'] ?? 'local');
 
         if ($provider === 'message_central') {
+            $context = [
+                'country_code_digits' => (string) ($payload['country_code_digits'] ?? ''),
+                'mobile_number' => (string) ($payload['mobile_number'] ?? ''),
+                'auth_token' => (string) ($payload['mc_auth_token'] ?? ''),
+            ];
+
             return $this->messageCentral->validateOtp(
                 (string) ($payload['verification_id'] ?? ''),
                 $code,
                 (string) ($payload['flow_type'] ?? 'SMS'),
+                $context,
             );
         }
 
@@ -230,6 +241,9 @@ class OtpDeliveryService
         string $phoneE164,
         string $verificationId,
         string $flowType,
+        string $countryCodeDigits = '',
+        string $mobileNumber = '',
+        ?string $mcAuthToken = null,
     ): string {
         $payload = [
             'v' => 1,
@@ -238,8 +252,14 @@ class OtpDeliveryService
             'phone_e164' => $phoneE164,
             'verification_id' => $verificationId,
             'flow_type' => strtoupper($flowType),
+            'country_code_digits' => $countryCodeDigits,
+            'mobile_number' => $mobileNumber,
             'exp' => now()->addSeconds($this->ttlSeconds())->timestamp,
         ];
+
+        if ($mcAuthToken !== null && $mcAuthToken !== '') {
+            $payload['mc_auth_token'] = $mcAuthToken;
+        }
 
         return Crypt::encryptString(json_encode($payload, JSON_UNESCAPED_UNICODE));
     }

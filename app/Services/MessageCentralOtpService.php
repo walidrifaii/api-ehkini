@@ -106,7 +106,10 @@ class MessageCentralOtpService
         return $failure;
     }
 
-    public function validateOtp(string $verificationId, string $code, string $flowType = 'SMS'): array
+    /**
+     * @param  array{country_code_digits?:string,mobile_number?:string,auth_token?:string}  $context
+     */
+    public function validateOtp(string $verificationId, string $code, string $flowType = 'SMS', array $context = []): array
     {
         if (! $this->hasCredentials()) {
             return ['ok' => false, 'error' => 'message_central_not_configured'];
@@ -114,29 +117,69 @@ class MessageCentralOtpService
 
         $cfg = config('otp.message_central');
         $flowType = 'SMS';
+        $authToken = $this->resolveAuthToken($cfg, $context);
 
-        // POST /verification/v3/validateOtp/ with flowType=SMS
         $query = [
             'verificationId' => $verificationId,
             'code' => $code,
             'flowType' => $flowType,
         ];
 
-        $v3 = $this->postWithQuery($cfg, '/verification/v3/validateOtp/', $query);
-        $v3Result = $this->parseValidateResponse($v3['status'], $v3['json'], $v3['body']);
+        $ccDigits = (string) ($context['country_code_digits'] ?? '');
+        $mobileNumber = (string) ($context['mobile_number'] ?? '');
+        if ($ccDigits !== '') {
+            $query['countryCode'] = $ccDigits;
+        }
+        if ($mobileNumber !== '') {
+            $query['mobileNumber'] = $mobileNumber;
+        }
+        $customerId = $this->normalizeCustomerId((string) ($cfg['customer_id'] ?? ''));
+        if ($customerId !== '') {
+            $query['customerId'] = $customerId;
+        }
+
+        // Official VerifyNow docs: GET /verification/v3/validateOtp
+        $v3Get = $this->getWithQuery($cfg, '/verification/v3/validateOtp', $query, $authToken);
+        $v3Result = $this->parseValidateResponse($v3Get['status'], $v3Get['json'], $v3Get['body']);
         if ($v3Result['ok'] ?? false) {
             return $v3Result;
         }
 
-        $v2 = $this->postWithQuery($cfg, '/verification/v2/verification/validateOtp', $query);
+        $v3GetSlash = $this->getWithQuery($cfg, '/verification/v3/validateOtp/', $query, $authToken);
+        $v3SlashResult = $this->parseValidateResponse($v3GetSlash['status'], $v3GetSlash['json'], $v3GetSlash['body']);
+        if ($v3SlashResult['ok'] ?? false) {
+            return $v3SlashResult;
+        }
+
+        $v3Post = $this->postWithQuery($cfg, '/verification/v3/validateOtp/', $query, $authToken);
+        $v3PostResult = $this->parseValidateResponse($v3Post['status'], $v3Post['json'], $v3Post['body']);
+        if ($v3PostResult['ok'] ?? false) {
+            return $v3PostResult;
+        }
+
+        $v2 = $this->getWithQuery($cfg, '/verification/v2/verification/validateOtp', $query, $authToken);
         $v2Result = $this->parseValidateResponse($v2['status'], $v2['json'], $v2['body']);
         if ($v2Result['ok'] ?? false) {
             return $v2Result;
         }
 
-        if (($v3Result['error'] ?? '') === 'invalid_code' || ($v2Result['error'] ?? '') === 'invalid_code') {
-            return ['ok' => false, 'error' => 'invalid_code', 'body' => $v3Result['body'] ?? $v2Result['body'] ?? null];
+        $v2Post = $this->postWithQuery($cfg, '/verification/v2/verification/validateOtp', $query, $authToken);
+        $v2PostResult = $this->parseValidateResponse($v2Post['status'], $v2Post['json'], $v2Post['body']);
+        if ($v2PostResult['ok'] ?? false) {
+            return $v2PostResult;
         }
+
+        foreach ([$v3Result, $v3SlashResult, $v3PostResult, $v2Result, $v2PostResult] as $attempt) {
+            if (($attempt['error'] ?? '') === 'invalid_code') {
+                return ['ok' => false, 'error' => 'invalid_code', 'body' => $attempt['body'] ?? null];
+            }
+        }
+
+        Log::warning('message_central.validate_failed', [
+            'verification_id' => $verificationId,
+            'http' => $v3Get['status'] ?? null,
+            'body' => $v3Result['body'] ?? $v3Get['body'] ?? null,
+        ]);
 
         return $v3Result;
     }
@@ -149,18 +192,61 @@ class MessageCentralOtpService
     /**
      * @return array{status:int, json:mixed, body:string, query:array<string, mixed>, url:string}
      */
-    private function postWithQuery(array $cfg, string $path, array $query): array
+    /**
+     * @return array{status:int, json:mixed, body:string, query:array<string, mixed>, url:string}
+     */
+    private function getWithQuery(array $cfg, string $path, array $query, ?string $authToken = null): array
     {
         $baseUrl = rtrim((string) $cfg['base_url'], '/');
         $url = $baseUrl . $path;
 
         try {
-            $response = Http::withHeaders($this->headers($cfg))
+            $response = Http::withHeaders($this->headers($cfg, $authToken))
+                ->withQueryParameters($query)
+                ->timeout(25)
+                ->get($url);
+        } catch (\Throwable $e) {
+            Log::error('message_central.http_exception', [
+                'method' => 'GET',
+                'url' => $url,
+                'query' => $query,
+                'message' => $e->getMessage(),
+            ]);
+
+            return [
+                'status' => 0,
+                'json' => null,
+                'body' => $e->getMessage(),
+                'query' => $query,
+                'url' => $url,
+            ];
+        }
+
+        return [
+            'status' => $response->status(),
+            'json' => $response->json(),
+            'body' => (string) $response->body(),
+            'query' => $query,
+            'url' => $url,
+        ];
+    }
+
+    /**
+     * @return array{status:int, json:mixed, body:string, query:array<string, mixed>, url:string}
+     */
+    private function postWithQuery(array $cfg, string $path, array $query, ?string $authToken = null): array
+    {
+        $baseUrl = rtrim((string) $cfg['base_url'], '/');
+        $url = $baseUrl . $path;
+
+        try {
+            $response = Http::withHeaders($this->headers($cfg, $authToken))
                 ->withQueryParameters($query)
                 ->timeout(25)
                 ->post($url);
         } catch (\Throwable $e) {
             Log::error('message_central.http_exception', [
+                'method' => 'POST',
                 'url' => $url,
                 'query' => $query,
                 'message' => $e->getMessage(),
@@ -228,9 +314,15 @@ class MessageCentralOtpService
             ];
         }
 
+        $sessionAuthToken = data_get($json, 'data.authToken');
+        if ($sessionAuthToken === null) {
+            $sessionAuthToken = data_get($json, 'authToken');
+        }
+
         return [
             'ok' => true,
             'verification_id' => (string) $verificationId,
+            'auth_token' => is_string($sessionAuthToken) && $sessionAuthToken !== '' ? $sessionAuthToken : null,
             'body' => $json,
         ];
     }
@@ -253,7 +345,12 @@ class MessageCentralOtpService
         $message = strtoupper((string) (data_get($json, 'message') ?? ''));
         $status = strtoupper((string) data_get($json, 'data.verificationStatus', ''));
 
-        if (in_array($responseCode, [702, 705, 700], true)) {
+        if (in_array($responseCode, [702, 705, 700, 703, 704], true)) {
+            return ['ok' => false, 'error' => 'invalid_code', 'body' => $json];
+        }
+
+        $mcError = strtoupper((string) (data_get($json, 'data.errorMessage') ?? ''));
+        if (str_contains($mcError, 'INVALID') && str_contains($mcError, 'OTP')) {
             return ['ok' => false, 'error' => 'invalid_code', 'body' => $json];
         }
 
@@ -274,12 +371,29 @@ class MessageCentralOtpService
     }
 
     /**
+     * @param  array{country_code_digits?:string,mobile_number?:string,auth_token?:string}  $context
+     */
+    private function resolveAuthToken(array $cfg, array $context = []): ?string
+    {
+        $session = trim((string) ($context['auth_token'] ?? ''));
+        if ($session !== '') {
+            return $session;
+        }
+
+        $configured = trim((string) ($cfg['auth_token'] ?? ''));
+
+        return $configured !== '' ? $configured : null;
+    }
+
+    /**
      * @return array<string, string>
      */
-    private function headers(array $cfg): array
+    private function headers(array $cfg, ?string $authToken = null): array
     {
+        $token = $authToken ?? (string) ($cfg['auth_token'] ?? '');
+
         return [
-            'authToken' => (string) ($cfg['auth_token'] ?? ''),
+            'authToken' => $token,
             'accept' => '*/*',
         ];
     }
@@ -336,6 +450,9 @@ class MessageCentralOtpService
             }
             if ($code === 800) {
                 return 'Message Central rate limit reached (800).';
+            }
+            if ($code === 508) {
+                return 'Message Central SMS credits finished. Add credits in your Message Central dashboard.';
             }
             if (($result['error'] ?? '') === 'message_central_connection_failed') {
                 return 'Could not connect to Message Central: '.($result['detail'] ?? 'unknown');

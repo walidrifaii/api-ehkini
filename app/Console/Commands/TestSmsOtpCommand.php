@@ -9,9 +9,10 @@ class TestSmsOtpCommand extends Command
 {
     protected $signature = 'otp:test-sms
         {country_code : e.g. +961 or 961}
-        {phone : mobile without country code, e.g. 78657964}';
+        {phone : mobile without country code, e.g. 78657964}
+        {--code= : optional OTP code to validate after send}';
 
-    protected $description = 'Test Message Central SMS OTP send and print full API response';
+    protected $description = 'Test Message Central SMS OTP send (and optional validate)';
 
     public function handle(MessageCentralOtpService $messageCentral): int
     {
@@ -33,9 +34,29 @@ class TestSmsOtpCommand extends Command
         $result = $messageCentral->sendOtp($ccDigits, $phone, 'SMS');
 
         if ($result['ok'] ?? false) {
-            $this->info('SUCCESS — verification_id: '.($result['verification_id'] ?? '?'));
+            $verificationId = (string) ($result['verification_id'] ?? '?');
+            $this->info('SUCCESS — verification_id: '.$verificationId);
             if (isset($result['body'])) {
                 $this->line(json_encode($result['body'], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+            }
+
+            $code = (string) $this->option('code');
+            if ($code !== '') {
+                $this->newLine();
+                $this->line('Validating code...');
+                $validate = $messageCentral->validateOtp($verificationId, $code, 'SMS', [
+                    'country_code_digits' => $ccDigits,
+                    'mobile_number' => $phone,
+                    'auth_token' => isset($result['auth_token']) ? (string) $result['auth_token'] : '',
+                ]);
+                if ($validate['ok'] ?? false) {
+                    $this->info('VALIDATE SUCCESS');
+                } else {
+                    $this->error('VALIDATE FAILED — '.($validate['error'] ?? 'unknown'));
+                    $this->line(json_encode($validate, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+
+                    return self::FAILURE;
+                }
             }
 
             return self::SUCCESS;

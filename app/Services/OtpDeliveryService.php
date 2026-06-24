@@ -49,16 +49,35 @@ class OtpDeliveryService
         $ccDigits = $this->messageCentral->countryCodeDigits($countryCode);
         $attempts = [];
 
-        foreach ($this->resolveSendChannels($channel) as $resolvedChannel) {
+        $channels = $this->resolveSendChannels($channel);
+        if ($channels === []) {
+            return [
+                'ok' => false,
+                'error' => 'otp_channels_not_configured',
+                'hint' => 'Enable WhatsApp node and/or Message Central SMS in .env',
+            ];
+        }
+
+        foreach ($channels as $resolvedChannel) {
             if ($resolvedChannel === 'whatsapp_node') {
                 $code = random_int(100000, 999999);
                 $send = $this->whatsAppNode->sendOtpViaNodeCampaign($phoneE164, $code);
                 $attempts[] = ['channel' => $resolvedChannel, 'result' => $send];
 
                 if ($send['ok'] ?? false) {
+                    try {
+                        $otpToken = $this->buildLocalOtpToken($purpose, $phoneE164, $code);
+                    } catch (\RuntimeException $e) {
+                        return [
+                            'ok' => false,
+                            'error' => 'otp_pepper_missing',
+                            'detail' => $e->getMessage(),
+                        ];
+                    }
+
                     return [
                         'ok' => true,
-                        'otp_token' => $this->buildLocalOtpToken($purpose, $phoneE164, $code),
+                        'otp_token' => $otpToken,
                         'channel' => $resolvedChannel,
                     ];
                 }
@@ -66,8 +85,7 @@ class OtpDeliveryService
                 continue;
             }
 
-            $flowType = $resolvedChannel === 'whatsapp_mc' ? 'WHATSAPP' : 'SMS';
-            $send = $this->messageCentral->sendOtp($ccDigits, $mobileNumber, $flowType);
+            $send = $this->messageCentral->sendOtp($ccDigits, $mobileNumber, 'SMS');
             $attempts[] = ['channel' => $resolvedChannel, 'result' => $send];
 
             if ($send['ok'] ?? false) {
@@ -77,9 +95,9 @@ class OtpDeliveryService
                         $purpose,
                         $phoneE164,
                         (string) $send['verification_id'],
-                        $flowType,
+                        'SMS',
                     ),
-                    'channel' => $resolvedChannel,
+                    'channel' => 'sms',
                 ];
             }
         }
@@ -140,21 +158,27 @@ class OtpDeliveryService
         $preferred = strtolower((string) config('otp.channel', 'auto'));
 
         $map = [
-            'whatsapp' => ['whatsapp_node', 'whatsapp_mc'],
+            // App "WhatsApp" button → WhatsApp node only (not Message Central).
+            'whatsapp' => ['whatsapp_node'],
             'whatsapp_node' => ['whatsapp_node'],
+            // App "SMS" button → Message Central VerifyNow only.
             'sms' => ['sms'],
-            'whatsapp_mc' => ['whatsapp_mc'],
         ];
 
         if ($requested !== '' && isset($map[$requested])) {
             return $this->filterAvailableChannels($map[$requested]);
         }
 
-        if ($preferred !== 'auto' && isset($map[$preferred])) {
-            return $this->filterAvailableChannels($map[$preferred]);
+        if ($preferred === 'whatsapp_node' || $preferred === 'whatsapp') {
+            return $this->filterAvailableChannels(['whatsapp_node']);
         }
 
-        return $this->filterAvailableChannels(['whatsapp_node', 'sms', 'whatsapp_mc']);
+        if ($preferred === 'sms') {
+            return $this->filterAvailableChannels(['sms']);
+        }
+
+        // auto without explicit channel: try WhatsApp node, then Message Central SMS.
+        return $this->filterAvailableChannels(['whatsapp_node', 'sms']);
     }
 
     /**
@@ -170,9 +194,6 @@ class OtpDeliveryService
                 $available[] = $channel;
             }
             if ($channel === 'sms' && $this->isSmsAvailable()) {
-                $available[] = $channel;
-            }
-            if ($channel === 'whatsapp_mc' && $this->isMessageCentralWhatsAppAvailable()) {
                 $available[] = $channel;
             }
         }

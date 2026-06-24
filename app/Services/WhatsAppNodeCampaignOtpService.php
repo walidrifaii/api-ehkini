@@ -11,27 +11,27 @@ class WhatsAppNodeCampaignOtpService
 {
     public function ttlSeconds(): int
     {
-        return (int) env('OTP_TTL_SECONDS', 300);
+        return (int) config('otp.ttl_seconds', 300);
     }
 
     private function pepper(): string
     {
-        return (string) env('OTP_PEPPER', '');
+        return (string) config('otp.pepper', '');
     }
 
     private function nodeUrl(): string
     {
-        return rtrim((string) env('WHATSAPP_NODE_URL', ''), '/');
+        return rtrim((string) config('otp.whatsapp_node.url', ''), '/');
     }
 
     private function nodeToken(): string
     {
-        return (string) env('WHATSAPP_NODE_TOKEN', '');
+        return (string) config('otp.whatsapp_node.token', '');
     }
 
     private function clientId(): string
     {
-        return (string) env('WHATSAPP_NODE_CLIENT_ID', '');
+        return (string) config('otp.whatsapp_node.client_id', '');
     }
 
     public function buildOtpToken(string $purpose, string $phoneE164, int $code): string
@@ -116,7 +116,7 @@ class WhatsAppNodeCampaignOtpService
         }
 
         $campaignName = 'otp_' . str_replace('-', '', (string) Str::uuid());
-        $message = 'Your password reset code is {code}. It expires in 5 minutes. Do not share it.';
+        $message = 'Your verification code is {code}. It expires in 5 minutes. Do not share it.';
 
         // 1) create campaign
         $create = Http::withToken($token)->acceptJson()->asJson()->timeout(20)

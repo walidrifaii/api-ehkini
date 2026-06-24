@@ -776,7 +776,7 @@ class AuthController extends Controller
         $data = $request->validate([
             'country_code' => ['required', 'string', 'max:6'],
             'phone'        => ['required', 'string', 'max:30'],
-            'channel'      => ['nullable', 'string', 'in:whatsapp,whatsapp_node,sms,whatsapp_mc'],
+            'channel'      => ['nullable', 'string', 'in:whatsapp,whatsapp_node,sms'],
         ]);
 
         $cc = $this->normalizeCountryCode($data['country_code']);
@@ -1088,7 +1088,7 @@ class AuthController extends Controller
     $data = $request->validate([
         'new_country_code' => ['required', 'string', 'max:6'],
         'new_phone'        => ['required', 'string', 'max:30'],
-        'channel'          => ['nullable', 'string', 'in:whatsapp,whatsapp_node,sms,whatsapp_mc'],
+        'channel'          => ['nullable', 'string', 'in:whatsapp,whatsapp_node,sms'],
     ]);
     $newCc = $this->normalizeCountryCode($data['new_country_code']);
     $newPh = $this->normalizePhone($data['new_phone']);
@@ -1166,7 +1166,7 @@ public function sendPasswordOtp(Request $request, OtpDeliveryService $otp)
     // Recommended: require current password before sending OTP
     $data = $request->validate([
         'current_password' => ['required', 'string'],
-        'channel' => ['nullable', 'string', 'in:whatsapp,whatsapp_node,sms,whatsapp_mc'],
+        'channel' => ['nullable', 'string', 'in:whatsapp,whatsapp_node,sms'],
     ]);
 
     if (!Hash::check($data['current_password'], $user->password)) {

@@ -7,8 +7,11 @@ return [
     'ttl_seconds' => (int) env('OTP_TTL_SECONDS', 300),
 
     /*
-    | Preferred channel: auto | whatsapp_node | sms | whatsapp_mc
-    | auto tries enabled providers in order: whatsapp_node, sms, whatsapp_mc
+    | SMS  → Message Central VerifyNow (OTP_MESSAGE_CENTRAL_SMS_ENABLED)
+    | WhatsApp → WhatsApp node only (OTP_WHATSAPP_NODE_ENABLED)
+    |
+    | OTP_CHANNEL: auto | whatsapp_node | sms
+    | auto = use channel from app request (whatsapp → node, sms → Message Central)
     */
     'channel' => env('OTP_CHANNEL', 'auto'),
 

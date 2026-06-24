@@ -73,7 +73,7 @@ class AuthController extends \App\Http\Controllers\Api\V1\AuthController
         $data = $request->validate([
             'country_code' => ['required', 'string', 'max:6'],
             'phone' => ['required', 'string', 'max:30'],
-            'channel' => ['nullable', 'string', 'in:whatsapp,whatsapp_node,sms,whatsapp_mc'],
+            'channel' => ['nullable', 'string', 'in:whatsapp,whatsapp_node,sms'],
         ]);
 
         $cc = $this->normalizeCountryCodeV2($data['country_code']);
@@ -87,10 +87,19 @@ class AuthController extends \App\Http\Controllers\Api\V1\AuthController
             ]);
         }
 
-        $send = $otp->sendOtp('register', $cc, $ph, $data['channel'] ?? null);
-        if (!($send['ok'] ?? false)) {
+        try {
+            $send = $otp->sendOtp('register', $cc, $ph, $data['channel'] ?? null);
+        } catch (\Throwable $e) {
             return response()->json([
                 'message' => 'Failed to send OTP.',
+                'error' => 'otp_send_exception',
+                'detail' => $e->getMessage(),
+            ], 502);
+        }
+
+        if (!($send['ok'] ?? false)) {
+            return response()->json([
+                'message' => api_trans('failed_to_send_otp'),
                 'error' => $send,
             ], 502);
         }
@@ -265,7 +274,7 @@ class AuthController extends \App\Http\Controllers\Api\V1\AuthController
         $data = $request->validate([
             'new_country_code' => ['required', 'string', 'max:6'],
             'new_phone' => ['required', 'string', 'max:30'],
-            'channel' => ['nullable', 'string', 'in:whatsapp,whatsapp_node,sms,whatsapp_mc'],
+            'channel' => ['nullable', 'string', 'in:whatsapp,whatsapp_node,sms'],
         ]);
 
         $newCc = $this->normalizeCountryCodeV2($data['new_country_code']);

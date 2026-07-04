@@ -37,7 +37,7 @@ class OtpDeliveryService
     }
 
     /**
-     * @return array{ok:bool, otp_token?:string, channel?:string, error?:string, attempts?:array<int,array<string,mixed>>}
+     * @return array{ok:bool, otp_token?:string, channel?:string, expires_in?:int, error?:string, attempts?:array<int,array<string,mixed>>}
      */
     public function sendOtp(
         string $purpose,
@@ -60,25 +60,16 @@ class OtpDeliveryService
 
         foreach ($channels as $resolvedChannel) {
             if ($resolvedChannel === 'whatsapp_node') {
-                $code = random_int(100000, 999999);
-                $send = $this->whatsAppNode->sendOtpViaNodeCampaign($phoneE164, $code);
+                $code = (string) random_int(100000, 999999);
+                $send = $this->whatsAppNode->sendOtpViaNodeCampaign($phoneE164, $code, $purpose);
                 $attempts[] = ['channel' => $resolvedChannel, 'result' => $send];
 
                 if ($send['ok'] ?? false) {
-                    try {
-                        $otpToken = $this->buildLocalOtpToken($purpose, $phoneE164, $code);
-                    } catch (\RuntimeException $e) {
-                        return [
-                            'ok' => false,
-                            'error' => 'otp_pepper_missing',
-                            'detail' => $e->getMessage(),
-                        ];
-                    }
-
                     return [
                         'ok' => true,
-                        'otp_token' => $otpToken,
-                        'channel' => $resolvedChannel,
+                        'otp_token' => $send['otp_token'],
+                        'channel' => $send['channel'] ?? $resolvedChannel,
+                        'expires_in' => $send['expires_in'] ?? $this->ttlSeconds(),
                     ];
                 }
 
@@ -109,7 +100,7 @@ class OtpDeliveryService
         return [
             'ok' => false,
             'error' => 'no_otp_channel_available',
-            'error_summary' => $this->summarizeAttempts($attempts),
+            'error_summary' => $this->summarizeAttempts($attempts) ?? 'no_otp_channel_available',
             'attempts' => $attempts,
         ];
     }
@@ -121,6 +112,9 @@ class OtpDeliveryService
     {
         foreach ($attempts as $attempt) {
             $result = $attempt['result'] ?? [];
+            if (! empty($result['error'])) {
+                return (string) $result['error'];
+            }
             if (! empty($result['error_summary'])) {
                 return (string) $result['error_summary'];
             }
@@ -229,11 +223,6 @@ class OtpDeliveryService
         }
 
         return $available;
-    }
-
-    private function buildLocalOtpToken(string $purpose, string $phoneE164, int $code): string
-    {
-        return $this->whatsAppNode->buildOtpToken($purpose, $phoneE164, $code);
     }
 
     private function buildMessageCentralOtpToken(

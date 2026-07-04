@@ -6,6 +6,7 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class WhatsAppNodeCampaignOtpService
@@ -20,59 +21,37 @@ class WhatsAppNodeCampaignOtpService
         return (string) config('otp.pepper', '');
     }
 
-    private function nodeUrl(): string
+    private function nodeHttp(): \Illuminate\Http\Client\PendingRequest
     {
-        return rtrim((string) config('otp.whatsapp_node.url', ''), '/');
-    }
-
-    private function nodeToken(): string
-    {
-        return (string) config('otp.whatsapp_node.token', '');
-    }
-
-    private function clientId(): string
-    {
-        return (string) config('otp.whatsapp_node.client_id', '');
-    }
-
-    private function deliveryMode(): string
-    {
-        return strtolower((string) config('otp.whatsapp_node.delivery', 'otp'));
-    }
-
-    private function timeout(): int
-    {
-        return max(1, (int) config('otp.whatsapp_node.timeout', 25));
-    }
-
-    private function connectTimeout(): int
-    {
-        return max(1, (int) config('otp.whatsapp_node.connect_timeout', 5));
-    }
-
-    private function httpClient(?int $timeout = null): \Illuminate\Http\Client\PendingRequest
-    {
-        return Http::withToken($this->nodeToken())
+        return Http::withToken((string) config('otp.whatsapp_node.token'))
             ->acceptJson()
             ->asJson()
-            ->timeout($timeout ?? $this->timeout())
-            ->connectTimeout($this->connectTimeout());
+            ->timeout((int) config('otp.whatsapp_node.timeout', 25))
+            ->connectTimeout((int) config('otp.whatsapp_node.connect_timeout', 5));
     }
 
-    /**
-     * @return array{ok: false, error: string, http?: int, body?: mixed}|array{ok: true}
-     */
-    private function nodeResponseFailure(Response $response): array
+    private function isConfigured(): bool
     {
-        return [
-            'ok' => false,
-            'error' => $response->json('error') ?? 'WhatsApp delivery failed',
-            'http' => $response->status(),
-            'body' => $response->json() ?? $response->body(),
-        ];
+        $cfg = config('otp.whatsapp_node');
+
+        return ($cfg['url'] ?? '') !== ''
+            && ($cfg['token'] ?? '') !== ''
+            && ($cfg['client_id'] ?? '') !== '';
     }
 
-    public function buildOtpToken(string $purpose, string $phoneE164, int $code): string
+    public function formatPhoneForNode(string $phoneE164): string
+    {
+        $format = strtoupper((string) config('otp.whatsapp_node.phone_format', 'E164'));
+        $digits = preg_replace('/\D+/', '', $phoneE164) ?? '';
+
+        if ($format === 'DIGITS') {
+            return $digits;
+        }
+
+        return str_starts_with($phoneE164, '+') ? $phoneE164 : '+' . $digits;
+    }
+
+    public function buildOtpToken(string $purpose, string $phoneE164, string $code): string
     {
         $pepper = $this->pepper();
         if ($pepper === '') {
@@ -161,58 +140,86 @@ class WhatsAppNodeCampaignOtpService
         return ['ok' => true];
     }
 
-    public function sendOtpViaNodeCampaign(string $phoneE164, int $code): array
+    /**
+     * @return array{ok: bool, error?: string, channel?: string, otp_token?: string, expires_in?: int, http?: int, body?: mixed}
+     */
+    public function sendOtpViaNodeCampaign(string $phoneE164, string $code, string $purpose = 'forgot_password'): array
     {
-        $url = $this->nodeUrl();
-        $token = $this->nodeToken();
-        $clientId = $this->clientId();
-
-        if ($url === '' || $token === '' || $clientId === '') {
+        if (! $this->isConfigured()) {
             return ['ok' => false, 'error' => 'node_not_configured'];
         }
 
-        if ($this->deliveryMode() === 'campaign') {
-            return $this->sendOtpViaCampaignFlow($phoneE164, $code, $clientId);
+        if (config('otp.whatsapp_node.delivery', 'otp') === 'otp') {
+            return $this->sendOtpViaOtpEndpoint($phoneE164, $code, $purpose);
         }
 
-        return $this->sendOtpDirect($phoneE164, $code, $clientId);
+        return $this->sendOtpViaLegacyCampaign($phoneE164, $code, $purpose);
     }
 
-    private function sendOtpDirect(string $phoneE164, int $code, string $clientId): array
+    /**
+     * @return array{ok: bool, error?: string, channel?: string, otp_token?: string, expires_in?: int, http?: int, body?: mixed}
+     */
+    private function sendOtpViaOtpEndpoint(string $phoneE164, string $code, string $purpose): array
     {
+        $url = rtrim((string) config('otp.whatsapp_node.url'), '/');
+        $phone = $this->formatPhoneForNode($phoneE164);
+
         try {
-            $response = $this->httpClient()
-                ->post($this->nodeUrl() . '/api/otp/send', [
-                    'phone' => $phoneE164,
-                    'code' => (string) $code,
-                    'clientId' => $clientId,
-                    'message' => 'Your verification code is ' . $code . '. It expires in 5 minutes.',
-                ]);
+            $response = $this->nodeHttp()->post($url . '/api/otp/send', [
+                'phone' => $phone,
+                'code' => $code,
+                'clientId' => (string) config('otp.whatsapp_node.client_id'),
+                'message' => 'Your verification code is ' . $code . '. It expires in 5 minutes. Do not share it.',
+            ]);
 
             if ($response->failed() || ! ($response->json('ok') ?? false)) {
-                return $this->nodeResponseFailure($response);
+                return [
+                    'ok' => false,
+                    'error' => $response->json('error') ?? 'WhatsApp delivery failed',
+                    'http' => $response->status(),
+                    'body' => $response->json() ?? $response->body(),
+                ];
             }
 
-            return ['ok' => true];
+            try {
+                $otpToken = $this->buildOtpToken($purpose, $phoneE164, $code);
+            } catch (\RuntimeException $e) {
+                return ['ok' => false, 'error' => 'otp_pepper_missing'];
+            }
+
+            return [
+                'ok' => true,
+                'channel' => (string) ($response->json('channel') ?? 'whatsapp_node'),
+                'otp_token' => $otpToken,
+                'expires_in' => (int) ($response->json('expires_in') ?? $this->ttlSeconds()),
+            ];
         } catch (ConnectionException $e) {
+            Log::error('WhatsApp Node unreachable', ['error' => $e->getMessage()]);
+
             return ['ok' => false, 'error' => 'WhatsApp service is not reachable'];
         }
     }
 
-    private function sendOtpViaCampaignFlow(string $phoneE164, int $code, string $clientId): array
+    /**
+     * @return array{ok: bool, error?: string, channel?: string, otp_token?: string, expires_in?: int, http?: int, body?: mixed, campaign?: string, campaignId?: string}
+     */
+    private function sendOtpViaLegacyCampaign(string $phoneE164, string $code, string $purpose): array
     {
+        $url = rtrim((string) config('otp.whatsapp_node.url'), '/');
+        $clientId = (string) config('otp.whatsapp_node.client_id');
+        $phone = $this->formatPhoneForNode($phoneE164);
         $campaignName = 'otp_' . str_replace('-', '', (string) Str::uuid());
         $message = 'Your verification code is {code}. It expires in 5 minutes. Do not share it.';
 
         try {
-            $create = $this->httpClient()->post($this->nodeUrl() . '/api/campaigns', [
+            $create = $this->nodeHttp()->post($url . '/api/campaigns', [
                 'name' => $campaignName,
                 'message' => $message,
                 'clientId' => $clientId,
             ]);
 
-            if ($create->failed() || ! ($create->json('ok') ?? $create->successful())) {
-                return $this->nodeResponseFailure($create);
+            if ($this->isNodeFailure($create)) {
+                return $this->nodeFailure($create);
             }
 
             $campaignId = data_get($create->json(), 'campaign._id')
@@ -222,29 +229,67 @@ class WhatsAppNodeCampaignOtpService
                 return ['ok' => false, 'error' => 'no_campaign_id', 'body' => $create->json()];
             }
 
-            $add = $this->httpClient()->post($this->nodeUrl() . '/api/contacts/' . $campaignId . '/add', [
-                'phone' => $phoneE164,
+            $add = $this->nodeHttp()->post($url . '/api/contacts/' . $campaignId . '/add', [
+                'phone' => $phone,
                 'name' => 'User',
-                'code' => (string) $code,
+                'code' => $code,
             ]);
 
-            if ($add->failed() || ! ($add->json('ok') ?? $add->successful())) {
-                return $this->nodeResponseFailure($add);
+            if ($this->isNodeFailure($add)) {
+                return $this->nodeFailure($add);
             }
 
-            $start = $this->httpClient()->post($this->nodeUrl() . '/api/campaigns/' . $campaignId . '/start', []);
+            $start = $this->nodeHttp()->post($url . '/api/campaigns/' . $campaignId . '/start', []);
 
-            if ($start->failed() || ! ($start->json('ok') ?? $start->successful())) {
-                return $this->nodeResponseFailure($start);
+            if ($this->isNodeFailure($start)) {
+                return $this->nodeFailure($start);
+            }
+
+            try {
+                $otpToken = $this->buildOtpToken($purpose, $phoneE164, $code);
+            } catch (\RuntimeException $e) {
+                return ['ok' => false, 'error' => 'otp_pepper_missing'];
             }
 
             return [
                 'ok' => true,
+                'channel' => 'whatsapp_node',
+                'otp_token' => $otpToken,
+                'expires_in' => $this->ttlSeconds(),
                 'campaign' => $campaignName,
                 'campaignId' => (string) $campaignId,
             ];
         } catch (ConnectionException $e) {
+            Log::error('WhatsApp Node unreachable', ['error' => $e->getMessage()]);
+
             return ['ok' => false, 'error' => 'WhatsApp service is not reachable'];
         }
+    }
+
+    private function isNodeFailure(Response $response): bool
+    {
+        if ($response->failed()) {
+            return true;
+        }
+
+        $ok = $response->json('ok');
+        if ($ok === null) {
+            return false;
+        }
+
+        return ! $ok;
+    }
+
+    /**
+     * @return array{ok: false, error: string, http?: int, body?: mixed}
+     */
+    private function nodeFailure(Response $response): array
+    {
+        return [
+            'ok' => false,
+            'error' => $response->json('error') ?? 'WhatsApp delivery failed',
+            'http' => $response->status(),
+            'body' => $response->json() ?? $response->body(),
+        ];
     }
 }

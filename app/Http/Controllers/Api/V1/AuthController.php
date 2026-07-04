@@ -790,18 +790,18 @@ class AuthController extends Controller
         }
 
         $send = $otp->sendOtp('forgot_password', $cc, $ph, $data['channel'] ?? null);
-        if (!($send['ok'] ?? false)) {
+        if (! ($send['ok'] ?? false)) {
             return response()->json([
                 'message' => 'Failed to send OTP.',
-                'error'   => $send,
+                'error' => $send['error'] ?? null,
             ], 502);
         }
 
         return response()->json([
-            'message'    => 'OTP sent.',
-            'otp_token'  => $send['otp_token'],
-            'channel'    => $send['channel'] ?? null,
-            'expires_in' => $otp->ttlSeconds(),
+            'message' => 'OTP sent.',
+            'otp_token' => $send['otp_token'],
+            'channel' => $send['channel'] ?? null,
+            'expires_in' => $send['expires_in'] ?? $otp->ttlSeconds(),
         ], 200);
     }
 
@@ -1181,11 +1181,11 @@ public function sendPasswordOtp(Request $request, OtpDeliveryService $otp)
     $ph = $this->normalizePhone((string) $user->phone);
 
     $send = $otp->sendOtp('update_password', $cc, $ph, $data['channel'] ?? null);
-    if (!($send['ok'] ?? false)) {
+    if (! ($send['ok'] ?? false)) {
         return response()->json([
             'success' => false,
             'message' => 'Failed to send OTP.',
-            'error' => 'otp_send_failed',
+            'error' => $send['error'] ?? 'otp_send_failed',
         ], 502);
     }
 
@@ -1194,7 +1194,7 @@ public function sendPasswordOtp(Request $request, OtpDeliveryService $otp)
         'message' => 'OTP sent.',
         'otp_token' => $send['otp_token'],
         'channel' => $send['channel'] ?? null,
-        'expires_in' => $otp->ttlSeconds(),
+        'expires_in' => $send['expires_in'] ?? $otp->ttlSeconds(),
     ], 200);
 }
 

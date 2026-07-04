@@ -20,11 +20,10 @@ return [
         'url' => rtrim((string) env('WHATSAPP_NODE_URL', ''), '/'),
         'token' => (string) env('WHATSAPP_NODE_TOKEN', ''),
         'client_id' => (string) env('WHATSAPP_NODE_CLIENT_ID', ''),
-        // otp = POST /api/otp/send (default, recommended)
-        // campaign = legacy 3-step flow (debugging only)
-        'delivery' => env('WHATSAPP_NODE_DELIVERY', 'otp'),
+        'delivery' => env('WHATSAPP_NODE_DELIVERY', 'otp'), // otp | campaign
         'timeout' => (int) env('WHATSAPP_NODE_TIMEOUT', 25),
         'connect_timeout' => (int) env('WHATSAPP_NODE_CONNECT_TIMEOUT', 5),
+        'phone_format' => env('WHATSAPP_NODE_PHONE_FORMAT', 'E164'), // E164 | DIGITS
     ],
 
     'message_central' => [

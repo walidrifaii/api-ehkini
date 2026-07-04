@@ -61,7 +61,17 @@ class OtpDeliveryService
         foreach ($channels as $resolvedChannel) {
             if ($resolvedChannel === 'whatsapp_node') {
                 $code = (string) random_int(100000, 999999);
-                $send = $this->whatsAppNode->sendOtpViaNodeCampaign($phoneE164, $code, $purpose);
+
+                try {
+                    $send = $this->whatsAppNode->sendOtpViaNodeCampaign($phoneE164, $code, $purpose);
+                } catch (\Throwable $e) {
+                    $send = [
+                        'ok' => false,
+                        'error' => 'WhatsApp service is not reachable',
+                        'detail' => $e->getMessage(),
+                    ];
+                }
+
                 $attempts[] = ['channel' => $resolvedChannel, 'result' => $send];
 
                 if ($send['ok'] ?? false) {
@@ -97,10 +107,12 @@ class OtpDeliveryService
             }
         }
 
+        $error = $this->summarizeAttempts($attempts);
+
         return [
             'ok' => false,
-            'error' => 'no_otp_channel_available',
-            'error_summary' => $this->summarizeAttempts($attempts) ?? 'no_otp_channel_available',
+            'error' => $error ?? 'no_otp_channel_available',
+            'error_summary' => $error,
             'attempts' => $attempts,
         ];
     }

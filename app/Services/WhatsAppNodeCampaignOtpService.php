@@ -215,6 +215,13 @@ class WhatsAppNodeCampaignOtpService
             Log::error('WhatsApp Node unreachable', ['error' => $e->getMessage(), 'path' => $path]);
 
             return ['ok' => false, 'error' => 'WhatsApp service is not reachable'];
+        } catch (\Throwable $e) {
+            Log::error('WhatsApp Node OTP request failed', [
+                'error' => $e->getMessage(),
+                'path' => $path,
+            ]);
+
+            return ['ok' => false, 'error' => 'WhatsApp service is not reachable'];
         }
     }
 
@@ -272,6 +279,13 @@ class WhatsAppNodeCampaignOtpService
             return $result;
         } catch (ConnectionException $e) {
             Log::error('WhatsApp Node unreachable', ['error' => $e->getMessage(), 'flow' => 'campaign']);
+
+            return ['ok' => false, 'error' => 'WhatsApp service is not reachable'];
+        } catch (\Throwable $e) {
+            Log::error('WhatsApp Node campaign OTP failed', [
+                'error' => $e->getMessage(),
+                'flow' => 'campaign',
+            ]);
 
             return ['ok' => false, 'error' => 'WhatsApp service is not reachable'];
         }

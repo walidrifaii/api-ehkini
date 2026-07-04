@@ -14,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
@@ -789,11 +790,31 @@ class AuthController extends Controller
             return response()->json(['message' => 'If the phone exists, we sent a code.'], 200);
         }
 
-        $send = $otp->sendOtp('forgot_password', $cc, $ph, $data['channel'] ?? null);
-        if (! ($send['ok'] ?? false)) {
+        try {
+            $send = $otp->sendOtp('forgot_password', $cc, $ph, $data['channel'] ?? null);
+        } catch (\Throwable $e) {
+            Log::error('forgot_password.send_otp_exception', [
+                'error' => $e->getMessage(),
+                'phone_last4' => substr($ph, -4),
+            ]);
+
             return response()->json([
                 'message' => 'Failed to send OTP.',
+                'error' => 'otp_send_exception',
+            ], 502);
+        }
+
+        if (! ($send['ok'] ?? false)) {
+            Log::warning('forgot_password.send_otp_failed', [
                 'error' => $send['error'] ?? null,
+                'error_summary' => $send['error_summary'] ?? null,
+                'phone_last4' => substr($ph, -4),
+                'channel' => $data['channel'] ?? 'auto',
+            ]);
+
+            return response()->json([
+                'message' => 'Failed to send OTP.',
+                'error' => $send['error'] ?? $send['error_summary'] ?? 'otp_send_failed',
             ], 502);
         }
 

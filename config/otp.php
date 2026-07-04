@@ -20,6 +20,11 @@ return [
         'url' => rtrim((string) env('WHATSAPP_NODE_URL', ''), '/'),
         'token' => (string) env('WHATSAPP_NODE_TOKEN', ''),
         'client_id' => (string) env('WHATSAPP_NODE_CLIENT_ID', ''),
+        // otp = POST /api/otp/send (single contact, non-blocking)
+        // campaign = legacy 3-step flow (create → add contact → start)
+        'delivery' => env('WHATSAPP_NODE_DELIVERY', 'otp'),
+        'timeout_seconds' => (int) env('WHATSAPP_NODE_TIMEOUT', 30),
+        'campaign_start_timeout_seconds' => (int) env('WHATSAPP_NODE_CAMPAIGN_START_TIMEOUT', 90),
     ],
 
     'message_central' => [

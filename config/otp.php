@@ -20,8 +20,8 @@ return [
         'url' => rtrim((string) env('WHATSAPP_NODE_URL', ''), '/'),
         'token' => (string) env('WHATSAPP_NODE_TOKEN', ''),
         'client_id' => (string) env('WHATSAPP_NODE_CLIENT_ID', ''),
-        'delivery' => env('WHATSAPP_NODE_DELIVERY', 'otp'), // otp | campaign
-        'timeout' => (int) env('WHATSAPP_NODE_TIMEOUT', 25),
+        'delivery' => env('WHATSAPP_NODE_DELIVERY', 'otp'), // otp | campaign | send-campaign
+        'timeout' => (int) env('WHATSAPP_NODE_TIMEOUT', 35),
         'connect_timeout' => (int) env('WHATSAPP_NODE_CONNECT_TIMEOUT', 5),
         'phone_format' => env('WHATSAPP_NODE_PHONE_FORMAT', 'E164'), // E164 | DIGITS
     ],

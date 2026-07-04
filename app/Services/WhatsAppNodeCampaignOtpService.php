@@ -40,56 +40,33 @@ class WhatsAppNodeCampaignOtpService
         return strtolower((string) config('otp.whatsapp_node.delivery', 'otp'));
     }
 
-    private function timeoutSeconds(): int
+    private function timeout(): int
     {
-        return max(5, (int) config('otp.whatsapp_node.timeout_seconds', 30));
+        return max(1, (int) config('otp.whatsapp_node.timeout', 25));
     }
 
-    private function campaignStartTimeoutSeconds(): int
+    private function connectTimeout(): int
     {
-        return max(5, (int) config('otp.whatsapp_node.campaign_start_timeout_seconds', 90));
+        return max(1, (int) config('otp.whatsapp_node.connect_timeout', 5));
     }
 
-    /**
-     * @return array{response: Response|null, connection_error: string|null}
-     */
-    private function postToNode(string $path, array $body, ?int $timeoutSeconds = null): array
+    private function httpClient(?int $timeout = null): \Illuminate\Http\Client\PendingRequest
     {
-        $timeout = $timeoutSeconds ?? $this->timeoutSeconds();
-
-        try {
-            $response = Http::withToken($this->nodeToken())
-                ->acceptJson()
-                ->asJson()
-                ->timeout($timeout)
-                ->post($this->nodeUrl() . $path, $body);
-
-            return ['response' => $response, 'connection_error' => null];
-        } catch (ConnectionException $e) {
-            return ['response' => null, 'connection_error' => $e->getMessage()];
-        }
-    }
-
-    /**
-     * @return array{ok: false, error: string, detail?: string, http?: int, body?: mixed}|array{ok: true}
-     */
-    private function connectionFailure(string $error, string $detail): array
-    {
-        return [
-            'ok' => false,
-            'error' => $error,
-            'detail' => $detail,
-        ];
+        return Http::withToken($this->nodeToken())
+            ->acceptJson()
+            ->asJson()
+            ->timeout($timeout ?? $this->timeout())
+            ->connectTimeout($this->connectTimeout());
     }
 
     /**
      * @return array{ok: false, error: string, http?: int, body?: mixed}|array{ok: true}
      */
-    private function httpFailure(string $error, Response $response): array
+    private function nodeResponseFailure(Response $response): array
     {
         return [
             'ok' => false,
-            'error' => $error,
+            'error' => $response->json('error') ?? 'WhatsApp delivery failed',
             'http' => $response->status(),
             'body' => $response->json() ?? $response->body(),
         ];
@@ -194,31 +171,32 @@ class WhatsAppNodeCampaignOtpService
             return ['ok' => false, 'error' => 'node_not_configured'];
         }
 
-        if ($this->deliveryMode() !== 'campaign') {
-            return $this->sendOtpDirect($phoneE164, $code, $clientId);
+        if ($this->deliveryMode() === 'campaign') {
+            return $this->sendOtpViaCampaignFlow($phoneE164, $code, $clientId);
         }
 
-        return $this->sendOtpViaCampaignFlow($phoneE164, $code, $clientId);
+        return $this->sendOtpDirect($phoneE164, $code, $clientId);
     }
 
     private function sendOtpDirect(string $phoneE164, int $code, string $clientId): array
     {
-        $result = $this->postToNode('/api/otp/send', [
-            'phone' => $phoneE164,
-            'code' => (string) $code,
-            'clientId' => $clientId,
-        ]);
+        try {
+            $response = $this->httpClient()
+                ->post($this->nodeUrl() . '/api/otp/send', [
+                    'phone' => $phoneE164,
+                    'code' => (string) $code,
+                    'clientId' => $clientId,
+                    'message' => 'Your verification code is ' . $code . '. It expires in 5 minutes.',
+                ]);
 
-        if ($result['connection_error'] !== null) {
-            return $this->connectionFailure('otp_send_timeout', $result['connection_error']);
+            if ($response->failed() || ! ($response->json('ok') ?? false)) {
+                return $this->nodeResponseFailure($response);
+            }
+
+            return ['ok' => true];
+        } catch (ConnectionException $e) {
+            return ['ok' => false, 'error' => 'WhatsApp service is not reachable'];
         }
-
-        $response = $result['response'];
-        if (! $response->successful()) {
-            return $this->httpFailure('otp_send_failed', $response);
-        }
-
-        return ['ok' => true];
     }
 
     private function sendOtpViaCampaignFlow(string $phoneE164, int $code, string $clientId): array
@@ -226,62 +204,47 @@ class WhatsAppNodeCampaignOtpService
         $campaignName = 'otp_' . str_replace('-', '', (string) Str::uuid());
         $message = 'Your verification code is {code}. It expires in 5 minutes. Do not share it.';
 
-        $create = $this->postToNode('/api/campaigns', [
-            'name' => $campaignName,
-            'message' => $message,
-            'clientId' => $clientId,
-        ]);
+        try {
+            $create = $this->httpClient()->post($this->nodeUrl() . '/api/campaigns', [
+                'name' => $campaignName,
+                'message' => $message,
+                'clientId' => $clientId,
+            ]);
 
-        if ($create['connection_error'] !== null) {
-            return $this->connectionFailure('campaign_create_timeout', $create['connection_error']);
+            if ($create->failed() || ! ($create->json('ok') ?? $create->successful())) {
+                return $this->nodeResponseFailure($create);
+            }
+
+            $campaignId = data_get($create->json(), 'campaign._id')
+                ?? data_get($create->json(), 'campaign.id');
+
+            if (! $campaignId) {
+                return ['ok' => false, 'error' => 'no_campaign_id', 'body' => $create->json()];
+            }
+
+            $add = $this->httpClient()->post($this->nodeUrl() . '/api/contacts/' . $campaignId . '/add', [
+                'phone' => $phoneE164,
+                'name' => 'User',
+                'code' => (string) $code,
+            ]);
+
+            if ($add->failed() || ! ($add->json('ok') ?? $add->successful())) {
+                return $this->nodeResponseFailure($add);
+            }
+
+            $start = $this->httpClient()->post($this->nodeUrl() . '/api/campaigns/' . $campaignId . '/start', []);
+
+            if ($start->failed() || ! ($start->json('ok') ?? $start->successful())) {
+                return $this->nodeResponseFailure($start);
+            }
+
+            return [
+                'ok' => true,
+                'campaign' => $campaignName,
+                'campaignId' => (string) $campaignId,
+            ];
+        } catch (ConnectionException $e) {
+            return ['ok' => false, 'error' => 'WhatsApp service is not reachable'];
         }
-
-        $createResponse = $create['response'];
-        if (! $createResponse->successful()) {
-            return $this->httpFailure('campaign_create_failed', $createResponse);
-        }
-
-        $campaignId = data_get($createResponse->json(), 'campaign._id')
-            ?? data_get($createResponse->json(), 'campaign.id');
-
-        if (! $campaignId) {
-            return ['ok' => false, 'error' => 'no_campaign_id', 'body' => $createResponse->json()];
-        }
-
-        $add = $this->postToNode('/api/contacts/' . $campaignId . '/add', [
-            'phone' => $phoneE164,
-            'name' => 'User',
-            'code' => (string) $code,
-        ]);
-
-        if ($add['connection_error'] !== null) {
-            return $this->connectionFailure('contact_add_timeout', $add['connection_error']);
-        }
-
-        $addResponse = $add['response'];
-        if (! $addResponse->successful()) {
-            return $this->httpFailure('contact_add_failed', $addResponse);
-        }
-
-        $start = $this->postToNode(
-            '/api/campaigns/' . $campaignId . '/start',
-            [],
-            $this->campaignStartTimeoutSeconds(),
-        );
-
-        if ($start['connection_error'] !== null) {
-            return $this->connectionFailure('campaign_start_timeout', $start['connection_error']);
-        }
-
-        $startResponse = $start['response'];
-        if (! $startResponse->successful()) {
-            return $this->httpFailure('campaign_start_failed', $startResponse);
-        }
-
-        return [
-            'ok' => true,
-            'campaign' => $campaignName,
-            'campaignId' => (string) $campaignId,
-        ];
     }
 }

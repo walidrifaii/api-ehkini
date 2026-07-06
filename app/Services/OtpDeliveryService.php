@@ -9,6 +9,7 @@ class OtpDeliveryService
     public function __construct(
         private readonly WhatsAppNodeCampaignOtpService $whatsAppNode,
         private readonly MessageCentralOtpService $messageCentral,
+        private readonly UnoSmsOtpService $unoSms,
     ) {}
 
     public function ttlSeconds(): int
@@ -28,6 +29,18 @@ class OtpDeliveryService
 
     public function isSmsAvailable(): bool
     {
+        return $this->messageCentral->isSmsConfigured()
+            || $this->unoSms->isConfigured();
+    }
+
+    public function isSmsAvailableForCountry(string $countryCode): bool
+    {
+        $ccDigits = $this->messageCentral->countryCodeDigits($countryCode);
+
+        if ($this->unoSms->isLebanon($ccDigits)) {
+            return $this->unoSms->isConfigured();
+        }
+
         return $this->messageCentral->isSmsConfigured();
     }
 
@@ -54,7 +67,7 @@ class OtpDeliveryService
             return [
                 'ok' => false,
                 'error' => 'otp_channels_not_configured',
-                'hint' => 'Enable WhatsApp node and/or Message Central SMS in .env',
+                'hint' => 'Enable WhatsApp node, UnoSMS (Lebanon), and/or Message Central SMS in .env',
             ];
         }
 
@@ -86,11 +99,21 @@ class OtpDeliveryService
                 continue;
             }
 
-            $mobileDigits = $this->messageCentral->mobileNumberDigits($ccDigits, $mobileNumber);
-            $send = $this->messageCentral->sendOtp($ccDigits, $mobileDigits, 'SMS');
+            $send = $this->sendSmsOtp($purpose, $countryCode, $mobileNumber, $phoneE164, $ccDigits);
             $attempts[] = ['channel' => $resolvedChannel, 'result' => $send];
 
             if ($send['ok'] ?? false) {
+                if (isset($send['otp_token'])) {
+                    return [
+                        'ok' => true,
+                        'otp_token' => $send['otp_token'],
+                        'channel' => 'sms',
+                        'expires_in' => $send['expires_in'] ?? $this->ttlSeconds(),
+                    ];
+                }
+
+                $mobileDigits = $this->messageCentral->mobileNumberDigits($ccDigits, $mobileNumber);
+
                 return [
                     'ok' => true,
                     'otp_token' => $this->buildMessageCentralOtpToken(
@@ -197,7 +220,7 @@ class OtpDeliveryService
             // App "WhatsApp" button → WhatsApp node only (not Message Central).
             'whatsapp' => ['whatsapp_node'],
             'whatsapp_node' => ['whatsapp_node'],
-            // App "SMS" button → Message Central VerifyNow only.
+            // App "SMS" button → UnoSMS (Lebanon) or Message Central (other countries).
             'sms' => ['sms'],
         ];
 
@@ -213,7 +236,7 @@ class OtpDeliveryService
             return $this->filterAvailableChannels(['sms']);
         }
 
-        // auto without explicit channel: try WhatsApp node, then Message Central SMS.
+        // auto without explicit channel: try WhatsApp node, then SMS.
         return $this->filterAvailableChannels(['whatsapp_node', 'sms']);
     }
 
@@ -263,6 +286,38 @@ class OtpDeliveryService
         }
 
         return Crypt::encryptString(json_encode($payload, JSON_UNESCAPED_UNICODE));
+    }
+
+    /**
+     * Lebanon (+961) → UnoSMS. All other countries → Message Central.
+     *
+     * @return array<string, mixed>
+     */
+    private function sendSmsOtp(
+        string $purpose,
+        string $countryCode,
+        string $mobileNumber,
+        string $phoneE164,
+        string $ccDigits,
+    ): array {
+        if ($this->unoSms->isLebanon($ccDigits) && $this->unoSms->isConfigured()) {
+            $code = (string) random_int(100000, 999999);
+
+            return $this->unoSms->sendOtp($phoneE164, $code, $purpose);
+        }
+
+        if (! $this->messageCentral->isSmsConfigured()) {
+            return [
+                'ok' => false,
+                'error' => $this->unoSms->isLebanon($ccDigits)
+                    ? 'unosms_not_configured'
+                    : 'message_central_not_configured',
+            ];
+        }
+
+        $mobileDigits = $this->messageCentral->mobileNumberDigits($ccDigits, $mobileNumber);
+
+        return $this->messageCentral->sendOtp($ccDigits, $mobileDigits, 'SMS');
     }
 
     private function decodeToken(string $token): ?array

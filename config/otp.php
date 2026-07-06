@@ -36,4 +36,20 @@ return [
         'otp_length' => (int) env('MESSAGE_CENTRAL_OTP_LENGTH', 6),
     ],
 
+    /*
+    | Lebanon SMS OTP → UnoSMS (sms.unosms.net). Other countries → Message Central.
+    */
+    'unosms' => [
+        'enabled' => filter_var(env('OTP_UNOSMS_ENABLED', true), FILTER_VALIDATE_BOOL),
+        'url' => (string) env('UNOSMS_URL', 'https://sms.unosms.net/api.php'),
+        'user' => (string) env('UNOSMS_USER', ''),
+        'pass' => (string) env('UNOSMS_PASS', ''),
+        'from' => (string) env('UNOSMS_FROM', 'Ehkini'),
+        'timeout' => (int) env('UNOSMS_TIMEOUT', 15),
+        'country_codes' => array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string) env('OTP_UNOSMS_COUNTRY_CODES', '961')),
+        ))),
+    ],
+
 ];

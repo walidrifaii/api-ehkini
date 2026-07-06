@@ -43,14 +43,17 @@ class MessageCentralOtpService
         $cfg = config('otp.message_central');
         $customerId = $this->normalizeCustomerId((string) $cfg['customer_id']);
         $otpLength = (int) ($cfg['otp_length'] ?? 6);
+        $countryCodeDigits = $this->countryCodeDigits($countryCodeDigits);
+        $mobileNumber = $this->mobileNumberDigits($countryCodeDigits, $mobileNumber);
 
-        // Attempt 1 — full v3 (customerId + otpLength).
+        // Attempt 1 — full v3 (customerId + otpLength + type).
         $v3Full = [
             'countryCode' => $countryCodeDigits,
             'customerId' => $customerId,
             'flowType' => 'SMS',
             'mobileNumber' => $mobileNumber,
             'otpLength' => $otpLength,
+            'type' => 'OTP',
         ];
         $v3 = $this->postWithQuery($cfg, '/verification/v3/send', $v3Full);
         $v3Result = $this->parseSendResponse($v3['status'], $v3['json'], $v3['body'], $v3['query'] ?? $v3Full);
@@ -64,6 +67,8 @@ class MessageCentralOtpService
             'countryCode' => $countryCodeDigits,
             'flowType' => 'SMS',
             'mobileNumber' => $mobileNumber,
+            'otpLength' => $otpLength,
+            'type' => 'OTP',
         ];
         $v3b = $this->postWithQuery($cfg, '/verification/v3/send', $v3Minimal);
         $v3bResult = $this->parseSendResponse($v3b['status'], $v3b['json'], $v3b['body'], $v3b['query'] ?? $v3Minimal);
@@ -187,6 +192,22 @@ class MessageCentralOtpService
     public function countryCodeDigits(string $countryCode): string
     {
         return ltrim(preg_replace('/\D+/', '', $countryCode) ?? '', '0');
+    }
+
+    /**
+     * National mobile digits for Message Central (no country prefix, no leading 0).
+     * Accepts 70757961, 070757961, or full international 96170757961.
+     */
+    public function mobileNumberDigits(string $countryCodeDigits, string $mobileNumber): string
+    {
+        $cc = $this->countryCodeDigits($countryCodeDigits);
+        $mobile = ltrim(preg_replace('/\D+/', '', $mobileNumber) ?? '', '0');
+
+        if ($cc !== '' && str_starts_with($mobile, $cc) && strlen($mobile) > strlen($cc)) {
+            $mobile = substr($mobile, strlen($cc));
+        }
+
+        return ltrim($mobile, '0');
     }
 
     /**
@@ -453,6 +474,12 @@ class MessageCentralOtpService
             }
             if ($code === 508) {
                 return 'Message Central SMS credits finished. Add credits in your Message Central dashboard.';
+            }
+            if ($code === 212 || $code === 513) {
+                return 'Invalid mobile number for SMS (212/513). Use country_code=+961 and phone=70757961 (national number only).';
+            }
+            if ($code === 401 || $code === 403) {
+                return 'Message Central auth token rejected. Regenerate MESSAGE_CENTRAL_AUTH_TOKEN from the Message Central dashboard.';
             }
             if (($result['error'] ?? '') === 'message_central_connection_failed') {
                 return 'Could not connect to Message Central: '.($result['detail'] ?? 'unknown');

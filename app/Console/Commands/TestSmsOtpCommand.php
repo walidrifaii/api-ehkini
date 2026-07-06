@@ -17,11 +17,11 @@ class TestSmsOtpCommand extends Command
     public function handle(MessageCentralOtpService $messageCentral): int
     {
         $ccDigits = $messageCentral->countryCodeDigits((string) $this->argument('country_code'));
-        $phone = ltrim(preg_replace('/\D+/', '', (string) $this->argument('phone')) ?? '', '0');
+        $phone = $messageCentral->mobileNumberDigits($ccDigits, (string) $this->argument('phone'));
 
         $this->line('Message Central SMS test');
         $this->line('  countryCode: '.$ccDigits);
-        $this->line('  mobileNumber: '.$phone);
+        $this->line('  mobileNumber: '.$phone.' (national digits only)');
         $this->line('  sms_configured: '.($messageCentral->isSmsConfigured() ? 'yes' : 'no'));
         $this->newLine();
 

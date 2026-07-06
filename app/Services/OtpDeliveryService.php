@@ -86,7 +86,7 @@ class OtpDeliveryService
                 continue;
             }
 
-            $mobileDigits = ltrim(preg_replace('/\D+/', '', $mobileNumber) ?? '', '0');
+            $mobileDigits = $this->messageCentral->mobileNumberDigits($ccDigits, $mobileNumber);
             $send = $this->messageCentral->sendOtp($ccDigits, $mobileDigits, 'SMS');
             $attempts[] = ['channel' => $resolvedChannel, 'result' => $send];
 

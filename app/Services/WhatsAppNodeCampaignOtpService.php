@@ -62,7 +62,9 @@ class WhatsAppNodeCampaignOtpService
     }
 
     /**
-     * @return array{phone: string, code: string, clientId: string, message: string}
+     * Body for POST /api/otp/send — phone (digits only), code, clientId.
+     *
+     * @return array{phone: string, code: string, clientId: string}
      */
     private function otpRequestBody(string $phone, string $code): array
     {
@@ -70,7 +72,6 @@ class WhatsAppNodeCampaignOtpService
             'phone' => $phone,
             'code' => $code,
             'clientId' => (string) config('otp.whatsapp_node.client_id'),
-            'message' => $this->otpMessage($code),
         ];
     }
 
@@ -297,6 +298,11 @@ class WhatsAppNodeCampaignOtpService
     private function buildResultFromResponse(Response $response, string $phoneE164, string $code, string $purpose): array
     {
         if ($response->failed() || ! ($response->json('ok') ?? false)) {
+            Log::warning('WhatsApp Node OTP send failed', [
+                'http' => $response->status(),
+                'body' => $response->json() ?? $response->body(),
+            ]);
+
             return [
                 'ok' => false,
                 'error' => $response->json('error') ?? 'WhatsApp delivery failed',

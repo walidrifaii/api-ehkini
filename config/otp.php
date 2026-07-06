@@ -23,7 +23,7 @@ return [
         'delivery' => env('WHATSAPP_NODE_DELIVERY', 'otp'), // otp | campaign | send-campaign
         'timeout' => (int) env('WHATSAPP_NODE_TIMEOUT', 35),
         'connect_timeout' => (int) env('WHATSAPP_NODE_CONNECT_TIMEOUT', 5),
-        'phone_format' => env('WHATSAPP_NODE_PHONE_FORMAT', 'E164'), // E164 | DIGITS
+        'phone_format' => env('WHATSAPP_NODE_PHONE_FORMAT', 'DIGITS'), // DIGITS (E164 without +) | E164
     ],
 
     'message_central' => [

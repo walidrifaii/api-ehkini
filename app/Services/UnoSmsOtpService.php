@@ -11,10 +11,6 @@ use Illuminate\Support\Facades\Log;
  */
 class UnoSmsOtpService
 {
-    public function __construct(
-        private readonly WhatsAppNodeCampaignOtpService $otpToken,
-    ) {}
-
     public function isConfigured(): bool
     {
         $cfg = config('otp.unosms');
@@ -118,17 +114,8 @@ class UnoSmsOtpService
             ];
         }
 
-        try {
-            $token = $this->otpToken->buildOtpToken($purpose, $phoneE164, $code);
-        } catch (\RuntimeException) {
-            return ['ok' => false, 'error' => 'otp_pepper_missing'];
-        }
-
         return [
             'ok' => true,
-            'channel' => 'sms',
-            'otp_token' => $token,
-            'expires_in' => $this->otpToken->ttlSeconds(),
             'body' => $body,
         ];
     }

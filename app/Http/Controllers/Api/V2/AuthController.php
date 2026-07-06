@@ -119,12 +119,10 @@ class AuthController extends \App\Http\Controllers\Api\V1\AuthController
             return response()->json($payload, 502);
         }
 
-        return response()->json([
-            'message' => 'OTP sent.',
-            'otp_token' => $send['otp_token'],
-            'channel' => $send['channel'] ?? null,
-            'expires_in' => $otp->ttlSeconds(),
-        ], 200);
+        return response()->json(
+            $otp->buildOtpSendHttpResponse($send, 'OTP sent.'),
+            200,
+        );
     }
 
     public function registerVerifyOtp(Request $request, OtpDeliveryService $otp)
@@ -138,7 +136,7 @@ class AuthController extends \App\Http\Controllers\Api\V1\AuthController
 
         $cc = $this->normalizeCountryCodeV2($data['country_code']);
         $ph = $this->normalizePhoneV2($data['phone']);
-        $phoneE164 = $cc . $ph;
+        $phoneE164 = $otp->phoneE164ForRequest($cc, $ph);
 
         $check = $otp->verifyOtp($data['otp_token'], 'register', $phoneE164, $data['code']);
         if (!($check['ok'] ?? false)) {
@@ -299,7 +297,7 @@ class AuthController extends \App\Http\Controllers\Api\V1\AuthController
 
         $newCc = $this->normalizeCountryCodeV2($data['new_country_code']);
         $newPh = $this->normalizePhoneV2($data['new_phone']);
-        $newE164 = $newCc . $newPh;
+        $newE164 = $otp->phoneE164ForRequest($newCc, $newPh);
 
         if ((string) $user->country_code === $newCc && (string) $user->phone === $newPh) {
             return response()->json(['message' => 'New phone must be different from current phone.'], 422);
@@ -325,13 +323,10 @@ class AuthController extends \App\Http\Controllers\Api\V1\AuthController
             ], 502);
         }
 
-        return response()->json([
-            'success' => true,
-            'message' => 'OTP sent to new phone.',
-            'otp_token' => $send['otp_token'],
-            'channel' => $send['channel'] ?? null,
-            'expires_in' => $otp->ttlSeconds(),
-        ], 200);
+        return response()->json(
+            $otp->buildOtpSendHttpResponse($send, 'OTP sent to new phone.'),
+            200,
+        );
     }
 
     public function confirmNewPhoneWithOtp(Request $request, OtpDeliveryService $otp)
@@ -350,7 +345,7 @@ class AuthController extends \App\Http\Controllers\Api\V1\AuthController
 
         $newCc = $this->normalizeCountryCodeV2($data['new_country_code']);
         $newPh = $this->normalizePhoneV2($data['new_phone']);
-        $newE164 = $newCc . $newPh;
+        $newE164 = $otp->phoneE164ForRequest($newCc, $newPh);
 
         if ((string) $user->country_code === $newCc && (string) $user->phone === $newPh) {
             return response()->json(['message' => 'New phone must be different from current phone.'], 422);

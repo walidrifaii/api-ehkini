@@ -52,6 +52,9 @@ class TestSmsOtpCommand extends Command
             if (isset($result['otp_token'])) {
                 $this->line('  otp_token: ' . substr((string) $result['otp_token'], 0, 24) . '...');
             }
+            if (isset($result['verification_id'])) {
+                $this->line('  verification_id: ' . $result['verification_id']);
+            }
 
             $code = (string) $this->option('code');
             if ($code !== '' && isset($result['otp_token'])) {

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Str;
 
 class OtpDeliveryService
 {
@@ -15,6 +16,14 @@ class OtpDeliveryService
     public function ttlSeconds(): int
     {
         return $this->whatsAppNode->ttlSeconds();
+    }
+
+    public function phoneE164ForRequest(string $countryCode, string $phone): string
+    {
+        $ccDigits = $this->messageCentral->countryCodeDigits($countryCode);
+        $mobileDigits = $this->messageCentral->mobileNumberDigits($ccDigits, $phone);
+
+        return $this->phoneE164($countryCode, $mobileDigits);
     }
 
     public function isWhatsAppNodeAvailable(): bool
@@ -58,8 +67,9 @@ class OtpDeliveryService
         string $mobileNumber,
         ?string $channel = null,
     ): array {
-        $phoneE164 = $this->phoneE164($countryCode, $mobileNumber);
         $ccDigits = $this->messageCentral->countryCodeDigits($countryCode);
+        $mobileDigits = $this->messageCentral->mobileNumberDigits($ccDigits, $mobileNumber);
+        $phoneE164 = $this->phoneE164($countryCode, $mobileDigits);
         $attempts = [];
 
         $channels = $this->resolveSendChannels($channel);
@@ -99,34 +109,11 @@ class OtpDeliveryService
                 continue;
             }
 
-            $send = $this->sendSmsOtp($purpose, $countryCode, $mobileNumber, $phoneE164, $ccDigits);
+            $send = $this->sendSmsOtp($purpose, $ccDigits, $mobileDigits, $phoneE164);
             $attempts[] = ['channel' => $resolvedChannel, 'result' => $send];
 
             if ($send['ok'] ?? false) {
-                if (isset($send['otp_token'])) {
-                    return [
-                        'ok' => true,
-                        'otp_token' => $send['otp_token'],
-                        'channel' => 'sms',
-                        'expires_in' => $send['expires_in'] ?? $this->ttlSeconds(),
-                    ];
-                }
-
-                $mobileDigits = $this->messageCentral->mobileNumberDigits($ccDigits, $mobileNumber);
-
-                return [
-                    'ok' => true,
-                    'otp_token' => $this->buildMessageCentralOtpToken(
-                        $purpose,
-                        $phoneE164,
-                        (string) $send['verification_id'],
-                        'SMS',
-                        $ccDigits,
-                        $mobileDigits,
-                        isset($send['auth_token']) ? (string) $send['auth_token'] : null,
-                    ),
-                    'channel' => 'sms',
-                ];
+                return $this->finalizeSmsSendResult($send);
             }
         }
 
@@ -260,6 +247,39 @@ class OtpDeliveryService
         return $available;
     }
 
+    /**
+     * HTTP JSON body for OTP send endpoints (matches deployed app / Message Central shape).
+     *
+     * @param  array<string, mixed>  $send
+     * @return array<string, mixed>
+     */
+    public function buildOtpSendHttpResponse(array $send, string $message = 'OTP sent.'): array
+    {
+        return [
+            'success' => true,
+            'message' => $message,
+            'otp_token' => (string) ($send['otp_token'] ?? ''),
+            'verification_id' => $send['verification_id'] ?? null,
+            'channel' => $send['channel'] ?? 'sms',
+            'expires_in' => (int) ($send['expires_in'] ?? $this->ttlSeconds()),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $send
+     * @return array{ok: true, otp_token: string, verification_id: string, channel: string, expires_in: int}
+     */
+    private function finalizeSmsSendResult(array $send): array
+    {
+        return [
+            'ok' => true,
+            'otp_token' => (string) ($send['otp_token'] ?? ''),
+            'verification_id' => (string) ($send['verification_id'] ?? ''),
+            'channel' => (string) ($send['channel'] ?? 'sms'),
+            'expires_in' => (int) ($send['expires_in'] ?? $this->ttlSeconds()),
+        ];
+    }
+
     private function buildMessageCentralOtpToken(
         string $purpose,
         string $phoneE164,
@@ -295,15 +315,31 @@ class OtpDeliveryService
      */
     private function sendSmsOtp(
         string $purpose,
-        string $countryCode,
-        string $mobileNumber,
-        string $phoneE164,
         string $ccDigits,
+        string $mobileDigits,
+        string $phoneE164,
     ): array {
         if ($this->unoSms->isLebanon($ccDigits) && $this->unoSms->isConfigured()) {
             $code = (string) random_int(100000, 999999);
+            $send = $this->unoSms->sendOtp($phoneE164, $code, $purpose);
 
-            return $this->unoSms->sendOtp($phoneE164, $code, $purpose);
+            if (! ($send['ok'] ?? false)) {
+                return $send;
+            }
+
+            try {
+                $otpToken = $this->whatsAppNode->buildOtpToken($purpose, $phoneE164, $code);
+            } catch (\RuntimeException) {
+                return ['ok' => false, 'error' => 'otp_pepper_missing'];
+            }
+
+            return [
+                'ok' => true,
+                'verification_id' => (string) Str::uuid(),
+                'otp_token' => $otpToken,
+                'channel' => 'sms',
+                'expires_in' => $this->ttlSeconds(),
+            ];
         }
 
         if (! $this->messageCentral->isSmsConfigured()) {
@@ -315,9 +351,27 @@ class OtpDeliveryService
             ];
         }
 
-        $mobileDigits = $this->messageCentral->mobileNumberDigits($ccDigits, $mobileNumber);
+        $send = $this->messageCentral->sendOtp($ccDigits, $mobileDigits, 'SMS');
 
-        return $this->messageCentral->sendOtp($ccDigits, $mobileDigits, 'SMS');
+        if (! ($send['ok'] ?? false)) {
+            return $send;
+        }
+
+        return [
+            'ok' => true,
+            'verification_id' => (string) ($send['verification_id'] ?? ''),
+            'otp_token' => $this->buildMessageCentralOtpToken(
+                $purpose,
+                $phoneE164,
+                (string) $send['verification_id'],
+                'SMS',
+                $ccDigits,
+                $mobileDigits,
+                isset($send['auth_token']) ? (string) $send['auth_token'] : null,
+            ),
+            'channel' => 'sms',
+            'expires_in' => $this->ttlSeconds(),
+        ];
     }
 
     private function decodeToken(string $token): ?array
@@ -329,15 +383,13 @@ class OtpDeliveryService
         }
     }
 
-    private function phoneE164(string $countryCode, string $mobileNumber): string
+    private function phoneE164(string $countryCode, string $mobileDigits): string
     {
         $cc = preg_replace('/\s+/', '', trim($countryCode));
         if ($cc !== '' && $cc[0] !== '+') {
             $cc = '+' . $cc;
         }
 
-        $mobile = ltrim(preg_replace('/[\s\-]+/', '', trim($mobileNumber)) ?? '', '0');
-
-        return $cc . $mobile;
+        return $cc . $mobileDigits;
     }
 }

@@ -81,6 +81,14 @@ class OtpDeliveryService
             ];
         }
 
+        if ($this->requiresLocalOtpToken($ccDigits, $channels) && $this->localOtpPepper() === '') {
+            return [
+                'ok' => false,
+                'error' => 'otp_pepper_missing',
+                'error_summary' => 'OTP service is not configured (OTP_PEPPER missing).',
+            ];
+        }
+
         foreach ($channels as $resolvedChannel) {
             if ($resolvedChannel === 'whatsapp_node') {
                 $code = (string) random_int(100000, 999999);
@@ -321,16 +329,15 @@ class OtpDeliveryService
     ): array {
         if ($this->unoSms->isLebanon($ccDigits) && $this->unoSms->isConfigured()) {
             $code = (string) random_int(100000, 999999);
+            $otpToken = $this->buildLocalOtpToken($purpose, $phoneE164, $code);
+            if ($otpToken === null) {
+                return ['ok' => false, 'error' => 'otp_pepper_missing'];
+            }
+
             $send = $this->unoSms->sendOtp($phoneE164, $code, $purpose);
 
             if (! ($send['ok'] ?? false)) {
                 return $send;
-            }
-
-            try {
-                $otpToken = $this->whatsAppNode->buildOtpToken($purpose, $phoneE164, $code);
-            } catch (\RuntimeException) {
-                return ['ok' => false, 'error' => 'otp_pepper_missing'];
             }
 
             return [
@@ -372,6 +379,40 @@ class OtpDeliveryService
             'channel' => 'sms',
             'expires_in' => $this->ttlSeconds(),
         ];
+    }
+
+    private function localOtpPepper(): string
+    {
+        return (string) config('otp.pepper', '');
+    }
+
+    /**
+     * @param  list<string>  $channels
+     */
+    private function requiresLocalOtpToken(string $ccDigits, array $channels): bool
+    {
+        foreach ($channels as $channel) {
+            if ($channel === 'whatsapp_node') {
+                return true;
+            }
+
+            if ($channel === 'sms'
+                && $this->unoSms->isLebanon($ccDigits)
+                && $this->unoSms->isConfigured()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function buildLocalOtpToken(string $purpose, string $phoneE164, string $code): ?string
+    {
+        try {
+            return $this->whatsAppNode->buildOtpToken($purpose, $phoneE164, $code);
+        } catch (\RuntimeException) {
+            return null;
+        }
     }
 
     private function decodeToken(string $token): ?array

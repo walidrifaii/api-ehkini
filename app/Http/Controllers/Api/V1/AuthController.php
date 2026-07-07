@@ -1073,10 +1073,26 @@ class AuthController extends Controller
         }
 
         if (($payload['purpose'] ?? null) !== $purpose) return ['ok' => false, 'error' => 'wrong_purpose'];
-        if ((string) ($payload['phone_e164'] ?? '') !== $phoneE164) return ['ok' => false, 'error' => 'wrong_phone'];
+        if (! $this->phonesMatchLocal((string) ($payload['phone_e164'] ?? ''), $phoneE164)) {
+            return ['ok' => false, 'error' => 'wrong_phone'];
+        }
         if ((int) ($payload['exp'] ?? 0) < now()->timestamp) return ['ok' => false, 'error' => 'expired'];
 
         return ['ok' => true];
+    }
+
+    private function phonesMatchLocal(string $phoneA, string $phoneB): bool
+    {
+        $digitsA = preg_replace('/\D+/', '', $phoneA) ?? '';
+        $digitsB = preg_replace('/\D+/', '', $phoneB) ?? '';
+        if (str_starts_with($digitsA, '961')) {
+            $digitsA = '961' . ltrim(substr($digitsA, 3), '0');
+        }
+        if (str_starts_with($digitsB, '961')) {
+            $digitsB = '961' . ltrim(substr($digitsB, 3), '0');
+        }
+
+        return $digitsA !== '' && $digitsA === $digitsB;
     }
 
     // ---------------------------

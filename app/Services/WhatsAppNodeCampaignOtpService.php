@@ -87,10 +87,13 @@ class WhatsAppNodeCampaignOtpService
             throw new \RuntimeException('OTP_PEPPER missing');
         }
 
+        $code = $this->normalizeOtpCode($code);
+        $canonicalPhone = $this->canonicalPhoneE164($phoneE164);
+
         $payload = [
             'v' => 1,
             'purpose' => $purpose,
-            'phone_e164' => $phoneE164,
+            'phone_e164' => $canonicalPhone,
             'code_hash' => hash('sha256', $code . '|' . $pepper),
             'exp' => now()->addSeconds($this->ttlSeconds())->timestamp,
         ];
@@ -105,6 +108,11 @@ class WhatsAppNodeCampaignOtpService
             return ['ok' => false, 'error' => 'otp_not_configured'];
         }
 
+        $code = $this->normalizeOtpCode($code);
+        if (strlen($code) !== 6) {
+            return ['ok' => false, 'error' => 'invalid_code'];
+        }
+
         try {
             $payload = json_decode(Crypt::decryptString($token), true, 512, JSON_THROW_ON_ERROR);
         } catch (\Throwable $e) {
@@ -114,7 +122,7 @@ class WhatsAppNodeCampaignOtpService
         if (($payload['purpose'] ?? null) !== $purpose) {
             return ['ok' => false, 'error' => 'wrong_purpose'];
         }
-        if ((string) ($payload['phone_e164'] ?? '') !== $phoneE164) {
+        if (! $this->phonesMatch((string) ($payload['phone_e164'] ?? ''), $phoneE164)) {
             return ['ok' => false, 'error' => 'wrong_phone'];
         }
         if ((int) ($payload['exp'] ?? 0) < now()->timestamp) {
@@ -136,7 +144,7 @@ class WhatsAppNodeCampaignOtpService
         $payload = [
             'v' => 1,
             'purpose' => $purpose,
-            'phone_e164' => $phoneE164,
+            'phone_e164' => $this->canonicalPhoneE164($phoneE164),
             'exp' => now()->addSeconds($this->ttlSeconds())->timestamp,
         ];
 
@@ -159,7 +167,7 @@ class WhatsAppNodeCampaignOtpService
         if (($payload['purpose'] ?? null) !== $purpose) {
             return ['ok' => false, 'error' => 'wrong_purpose'];
         }
-        if ((string) ($payload['phone_e164'] ?? '') !== $phoneE164) {
+        if (! $this->phonesMatch((string) ($payload['phone_e164'] ?? ''), $phoneE164)) {
             return ['ok' => false, 'error' => 'wrong_phone'];
         }
         if ((int) ($payload['exp'] ?? 0) < now()->timestamp) {
@@ -167,6 +175,45 @@ class WhatsAppNodeCampaignOtpService
         }
 
         return ['ok' => true];
+    }
+
+    private function normalizeOtpCode(string $code): string
+    {
+        return substr(preg_replace('/\D+/', '', trim($code)) ?? '', 0, 6);
+    }
+
+    private function phoneDigits(string $phone): string
+    {
+        $digits = preg_replace('/\D+/', '', $phone) ?? '';
+        if ($digits === '') {
+            return '';
+        }
+
+        if (str_starts_with($digits, '961')) {
+            $national = ltrim(substr($digits, 3), '0');
+
+            return '961' . $national;
+        }
+
+        return ltrim($digits, '0');
+    }
+
+    private function phonesMatch(string $phoneA, string $phoneB): bool
+    {
+        $digitsA = $this->phoneDigits($phoneA);
+        $digitsB = $this->phoneDigits($phoneB);
+
+        return $digitsA !== '' && $digitsA === $digitsB;
+    }
+
+    private function canonicalPhoneE164(string $phoneE164): string
+    {
+        $digits = $this->phoneDigits($phoneE164);
+        if ($digits === '') {
+            return $phoneE164;
+        }
+
+        return '+' . $digits;
     }
 
     /**

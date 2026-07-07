@@ -405,7 +405,7 @@ class AuthController extends \App\Http\Controllers\Api\V1\AuthController
         if (($payload['purpose'] ?? null) !== $purpose) {
             return ['ok' => false, 'error' => 'wrong_purpose'];
         }
-        if ((string) ($payload['phone_e164'] ?? '') !== $phoneE164) {
+        if (! $this->phonesMatchV2((string) ($payload['phone_e164'] ?? ''), $phoneE164)) {
             return ['ok' => false, 'error' => 'wrong_phone'];
         }
         if ((int) ($payload['exp'] ?? 0) < now()->timestamp) {
@@ -413,6 +413,20 @@ class AuthController extends \App\Http\Controllers\Api\V1\AuthController
         }
 
         return ['ok' => true];
+    }
+
+    private function phonesMatchV2(string $phoneA, string $phoneB): bool
+    {
+        $digitsA = preg_replace('/\D+/', '', $phoneA) ?? '';
+        $digitsB = preg_replace('/\D+/', '', $phoneB) ?? '';
+        if (str_starts_with($digitsA, '961')) {
+            $digitsA = '961' . ltrim(substr($digitsA, 3), '0');
+        }
+        if (str_starts_with($digitsB, '961')) {
+            $digitsB = '961' . ltrim(substr($digitsB, 3), '0');
+        }
+
+        return $digitsA !== '' && $digitsA === $digitsB;
     }
 
     private function normalizeCountryCodeV2(string $countryCode): string

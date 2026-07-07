@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class OtpDeliveryService
@@ -23,7 +24,36 @@ class OtpDeliveryService
         $ccDigits = $this->messageCentral->countryCodeDigits($countryCode);
         $mobileDigits = $this->messageCentral->mobileNumberDigits($ccDigits, $phone);
 
-        return $this->phoneE164($countryCode, $mobileDigits);
+        return $this->formatPhoneE164($ccDigits, $mobileDigits);
+    }
+
+    public function phonesMatch(string $phoneA, string $phoneB): bool
+    {
+        $digitsA = $this->phoneDigits($phoneA);
+        $digitsB = $this->phoneDigits($phoneB);
+
+        return $digitsA !== '' && $digitsA === $digitsB;
+    }
+
+    public function normalizeOtpCode(string $code): string
+    {
+        return substr(preg_replace('/\D+/', '', trim($code)) ?? '', 0, 6);
+    }
+
+    public function phoneDigits(string $phone): string
+    {
+        $digits = preg_replace('/\D+/', '', $phone) ?? '';
+        if ($digits === '') {
+            return '';
+        }
+
+        if (str_starts_with($digits, '961')) {
+            $national = ltrim(substr($digits, 3), '0');
+
+            return '961' . $national;
+        }
+
+        return ltrim($digits, '0');
     }
 
     public function isWhatsAppNodeAvailable(): bool
@@ -69,7 +99,7 @@ class OtpDeliveryService
     ): array {
         $ccDigits = $this->messageCentral->countryCodeDigits($countryCode);
         $mobileDigits = $this->messageCentral->mobileNumberDigits($ccDigits, $mobileNumber);
-        $phoneE164 = $this->phoneE164($countryCode, $mobileDigits);
+        $phoneE164 = $this->formatPhoneE164($ccDigits, $mobileDigits);
         $attempts = [];
 
         $channels = $this->resolveSendChannels($channel);
@@ -150,6 +180,11 @@ class OtpDeliveryService
 
     public function verifyOtp(string $token, string $purpose, string $phoneE164, string $code): array
     {
+        $code = $this->normalizeOtpCode($code);
+        if (strlen($code) !== 6) {
+            return ['ok' => false, 'error' => 'invalid_code'];
+        }
+
         $payload = $this->decodeToken($token);
         if ($payload === null) {
             return ['ok' => false, 'error' => 'invalid_token'];
@@ -158,7 +193,7 @@ class OtpDeliveryService
         if (($payload['purpose'] ?? null) !== $purpose) {
             return ['ok' => false, 'error' => 'wrong_purpose'];
         }
-        if ((string) ($payload['phone_e164'] ?? '') !== $phoneE164) {
+        if (! $this->phonesMatch((string) ($payload['phone_e164'] ?? ''), $phoneE164)) {
             return ['ok' => false, 'error' => 'wrong_phone'];
         }
         if ((int) ($payload['exp'] ?? 0) < now()->timestamp) {
@@ -403,6 +438,14 @@ class OtpDeliveryService
         }
     }
 
+    private function formatPhoneE164(string $ccDigits, string $mobileDigits): string
+    {
+        $ccDigits = ltrim(preg_replace('/\D+/', '', $ccDigits) ?? '', '0');
+        $mobileDigits = ltrim(preg_replace('/\D+/', '', $mobileDigits) ?? '', '0');
+
+        return '+' . $ccDigits . $mobileDigits;
+    }
+
     private function decodeToken(string $token): ?array
     {
         try {
@@ -414,11 +457,8 @@ class OtpDeliveryService
 
     private function phoneE164(string $countryCode, string $mobileDigits): string
     {
-        $cc = preg_replace('/\s+/', '', trim($countryCode));
-        if ($cc !== '' && $cc[0] !== '+') {
-            $cc = '+' . $cc;
-        }
+        $ccDigits = $this->messageCentral->countryCodeDigits($countryCode);
 
-        return $cc . $mobileDigits;
+        return $this->formatPhoneE164($ccDigits, $mobileDigits);
     }
 }

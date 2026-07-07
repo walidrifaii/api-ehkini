@@ -98,8 +98,9 @@ class UnoSmsOtpService
         }
 
         $body = trim((string) $response->body());
+        $parsed = $this->parseSendResponse($response->status(), $body);
 
-        if (! $response->successful() || $this->looksLikeFailure($body)) {
+        if (! ($parsed['ok'] ?? false)) {
             Log::warning('unosms.send_failed', [
                 'http' => $response->status(),
                 'body' => $body,
@@ -108,11 +109,17 @@ class UnoSmsOtpService
 
             return [
                 'ok' => false,
-                'error' => $body !== '' ? $body : 'unosms_send_failed',
+                'error' => (string) ($parsed['error'] ?? ($body !== '' ? $body : 'unosms_send_failed')),
                 'http' => $response->status(),
                 'body' => $body,
             ];
         }
+
+        Log::info('unosms.send_ok', [
+            'http' => $response->status(),
+            'body' => $body,
+            'to_last4' => substr($cleanPhone, -4),
+        ]);
 
         return [
             'ok' => true,
@@ -120,20 +127,60 @@ class UnoSmsOtpService
         ];
     }
 
-    private function looksLikeFailure(string $body): bool
+    /**
+     * UnoSMS gateways often return a numeric message id, "OK", or plain text on success.
+     * The old substring check for "error" caused false failures while SMS was still delivered.
+     *
+     * @return array{ok: bool, error?: string}
+     */
+    private function parseSendResponse(int $httpStatus, string $body): array
     {
-        if ($body === '') {
-            return false;
+        $trimmed = trim($body);
+        $lower = strtolower($trimmed);
+
+        if ($trimmed === '' && $httpStatus >= 200 && $httpStatus < 300) {
+            return ['ok' => true];
         }
 
-        $lower = strtolower($body);
+        if (preg_match('/^\d+$/', $trimmed)) {
+            return ['ok' => true];
+        }
 
-        foreach (['error', 'fail', 'invalid', 'denied', 'rejected', 'wrong password', 'no credit'] as $needle) {
-            if (str_contains($lower, $needle)) {
-                return true;
+        if (in_array($lower, ['ok', 'success', 'sent', 'accepted', 'delivered', '1', 'true'], true)) {
+            return ['ok' => true];
+        }
+
+        if (preg_match('/\b(sent|success|accepted|delivered|submitted)\b/i', $trimmed)) {
+            return ['ok' => true];
+        }
+
+        $failurePatterns = [
+            '/^(err(or)?|fail(ed)?|invalid|denied|rejected)\b/i',
+            '/wrong\s+password/i',
+            '/no\s+credit/i',
+            '/insufficient(\s+credit|\s+balance)?/i',
+            '/authentication\s+failed/i',
+            '/unauthorized/i',
+            '/bad\s+request/i',
+        ];
+
+        foreach ($failurePatterns as $pattern) {
+            if (preg_match($pattern, $trimmed)) {
+                return [
+                    'ok' => false,
+                    'error' => $trimmed !== '' ? $trimmed : 'unosms_send_failed',
+                ];
             }
         }
 
-        return false;
+        if ($httpStatus < 200 || $httpStatus >= 300) {
+            return [
+                'ok' => false,
+                'error' => $trimmed !== '' ? $trimmed : 'unosms_send_failed',
+            ];
+        }
+
+        // HTTP 2xx with an unknown body: treat as success (SMS gateways vary widely).
+        return ['ok' => true];
     }
 }

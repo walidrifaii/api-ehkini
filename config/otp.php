@@ -2,7 +2,8 @@
 
 return [
 
-    'pepper' => env('OTP_PEPPER', ''),
+    // Falls back to APP_KEY so Lebanon SMS OTP works without a separate OTP_PEPPER on deploy.
+    'pepper' => env('OTP_PEPPER') ?: env('APP_KEY', ''),
 
     'ttl_seconds' => (int) env('OTP_TTL_SECONDS', 300),
 

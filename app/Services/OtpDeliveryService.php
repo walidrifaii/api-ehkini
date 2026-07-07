@@ -81,14 +81,6 @@ class OtpDeliveryService
             ];
         }
 
-        if ($this->requiresLocalOtpToken($ccDigits, $channels) && $this->localOtpPepper() === '') {
-            return [
-                'ok' => false,
-                'error' => 'otp_pepper_missing',
-                'error_summary' => 'OTP service is not configured (OTP_PEPPER missing).',
-            ];
-        }
-
         foreach ($channels as $resolvedChannel) {
             if ($resolvedChannel === 'whatsapp_node') {
                 $code = (string) random_int(100000, 999999);
@@ -329,15 +321,16 @@ class OtpDeliveryService
     ): array {
         if ($this->unoSms->isLebanon($ccDigits) && $this->unoSms->isConfigured()) {
             $code = (string) random_int(100000, 999999);
-            $otpToken = $this->buildLocalOtpToken($purpose, $phoneE164, $code);
-            if ($otpToken === null) {
-                return ['ok' => false, 'error' => 'otp_pepper_missing'];
-            }
 
             $send = $this->unoSms->sendOtp($phoneE164, $code, $purpose);
 
             if (! ($send['ok'] ?? false)) {
                 return $send;
+            }
+
+            $otpToken = $this->buildLocalOtpToken($purpose, $phoneE164, $code);
+            if ($otpToken === null) {
+                return ['ok' => false, 'error' => 'otp_pepper_missing'];
             }
 
             return [
@@ -383,34 +376,29 @@ class OtpDeliveryService
 
     private function localOtpPepper(): string
     {
-        return (string) config('otp.pepper', '');
-    }
-
-    /**
-     * @param  list<string>  $channels
-     */
-    private function requiresLocalOtpToken(string $ccDigits, array $channels): bool
-    {
-        foreach ($channels as $channel) {
-            if ($channel === 'whatsapp_node') {
-                return true;
-            }
-
-            if ($channel === 'sms'
-                && $this->unoSms->isLebanon($ccDigits)
-                && $this->unoSms->isConfigured()) {
-                return true;
-            }
+        $pepper = trim((string) config('otp.pepper', ''));
+        if ($pepper !== '') {
+            return $pepper;
         }
 
-        return false;
+        return trim((string) config('app.key', ''));
     }
 
     private function buildLocalOtpToken(string $purpose, string $phoneE164, string $code): ?string
     {
+        if ($this->localOtpPepper() === '') {
+            Log::error('otp.token_build_failed', ['reason' => 'otp_pepper_missing']);
+
+            return null;
+        }
+
         try {
             return $this->whatsAppNode->buildOtpToken($purpose, $phoneE164, $code);
-        } catch (\RuntimeException) {
+        } catch (\Throwable $e) {
+            Log::error('otp.token_build_failed', [
+                'reason' => $e->getMessage(),
+            ]);
+
             return null;
         }
     }

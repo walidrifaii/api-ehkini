@@ -18,7 +18,12 @@ class WhatsAppNodeCampaignOtpService
 
     private function pepper(): string
     {
-        return (string) config('otp.pepper', '');
+        $pepper = trim((string) config('otp.pepper', ''));
+        if ($pepper !== '') {
+            return $pepper;
+        }
+
+        return trim((string) config('app.key', ''));
     }
 
     private function nodeHttp(): \Illuminate\Http\Client\PendingRequest

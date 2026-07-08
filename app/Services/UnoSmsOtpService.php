@@ -90,7 +90,10 @@ class UnoSmsOtpService
             return ['ok' => false, 'error' => 'invalid_phone'];
         }
 
-        $send = $this->dispatchSend($toNumber, $code);
+        $send = $this->dispatchSend(
+            $toNumber,
+            'Your verification code is ' . $code . '. Valid for 5 minutes.',
+        );
         if (! ($send['ok'] ?? false)) {
             $international = $this->phoneDigits($phoneE164);
             if ($international !== '' && $international !== $toNumber) {
@@ -98,7 +101,46 @@ class UnoSmsOtpService
                     'from' => $toNumber,
                     'to' => $international,
                 ]);
-                $send = $this->dispatchSend($international, $code);
+                $send = $this->dispatchSend(
+                    $international,
+                    'Your verification code is ' . $code . '. Valid for 5 minutes.',
+                );
+            }
+        }
+
+        return $send;
+    }
+
+    /**
+     * Send a plain SMS (no OTP token flow).
+     *
+     * @return array{ok: bool, error?: string, http?: int, body?: string, detail?: string, to?: string}
+     */
+    public function sendMessage(string $phoneE164, string $message): array
+    {
+        if (! $this->isConfigured()) {
+            return ['ok' => false, 'error' => 'unosms_not_configured'];
+        }
+
+        $message = trim($message);
+        if ($message === '') {
+            return ['ok' => false, 'error' => 'empty_message'];
+        }
+
+        $toNumber = $this->formatToNumber($phoneE164);
+        if ($toNumber === '') {
+            return ['ok' => false, 'error' => 'invalid_phone'];
+        }
+
+        $send = $this->dispatchSend($toNumber, $message);
+        if (! ($send['ok'] ?? false)) {
+            $international = $this->phoneDigits($phoneE164);
+            if ($international !== '' && $international !== $toNumber) {
+                Log::info('unosms.retry_international', [
+                    'from' => $toNumber,
+                    'to' => $international,
+                ]);
+                $send = $this->dispatchSend($international, $message);
             }
         }
 
@@ -108,10 +150,9 @@ class UnoSmsOtpService
     /**
      * @return array{ok: bool, error?: string, http?: int, body?: string, detail?: string, to?: string}
      */
-    private function dispatchSend(string $toNumber, string $code): array
+    private function dispatchSend(string $toNumber, string $message): array
     {
         $cfg = config('otp.unosms');
-        $message = 'Your verification code is ' . $code . '. Valid for 5 minutes.';
 
         $params = [
             'user' => (string) $cfg['user'],

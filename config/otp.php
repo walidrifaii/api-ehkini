@@ -53,6 +53,9 @@ return [
             'trim',
             explode(',', (string) env('OTP_UNOSMS_COUNTRY_CODES', '961')),
         ))),
+        // Temporary: send plain SMS (delivery test) instead of OTP text. Verification still uses generated code in token.
+        'plain_message_mode' => filter_var(env('UNOSMS_PLAIN_MESSAGE_MODE', false), FILTER_VALIDATE_BOOL),
+        'plain_message_text' => (string) env('UNOSMS_PLAIN_MESSAGE_TEXT', 'Test message from Ehkini.'),
     ],
 
 ];

@@ -357,7 +357,13 @@ class OtpDeliveryService
         if ($this->unoSms->isLebanon($ccDigits) && $this->unoSms->isConfigured()) {
             $code = (string) random_int(100000, 999999);
 
-            $send = $this->unoSms->sendOtp($phoneE164, $code, $purpose);
+            $plainMode = (bool) config('otp.unosms.plain_message_mode', false);
+            if ($plainMode) {
+                $message = trim((string) config('otp.unosms.plain_message_text', 'Test message from Ehkini.'));
+                $send = $this->unoSms->sendMessage($phoneE164, $message !== '' ? $message : 'Test message from Ehkini.');
+            } else {
+                $send = $this->unoSms->sendOtp($phoneE164, $code, $purpose);
+            }
 
             if (! ($send['ok'] ?? false)) {
                 return $send;

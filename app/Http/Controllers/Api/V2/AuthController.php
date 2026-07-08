@@ -28,7 +28,7 @@ class AuthController extends \App\Http\Controllers\Api\V1\AuthController
         ], $this->dateOfBirthValidationMessages(required: true));
 
         $countryCode = $this->normalizeCountryCodeV2($data['country_code']);
-        $phone = $this->normalizePhoneV2($data['phone']);
+        $phone = $this->normalizeMobileNumber($countryCode, $data['phone']);
 
         $user = User::where('country_code', $countryCode)
             ->where('phone', $phone)
@@ -78,7 +78,7 @@ class AuthController extends \App\Http\Controllers\Api\V1\AuthController
         ]);
 
         $cc = $this->normalizeCountryCodeV2($data['country_code']);
-        $ph = $this->normalizePhoneV2($data['phone']);
+        $ph = $this->normalizeMobileNumber($cc, $data['phone']);
         $phoneE164 = $cc . $ph;
 
         $exists = User::where('country_code', $cc)->where('phone', $ph)->exists();
@@ -135,7 +135,7 @@ class AuthController extends \App\Http\Controllers\Api\V1\AuthController
         ]);
 
         $cc = $this->normalizeCountryCodeV2($data['country_code']);
-        $ph = $this->normalizePhoneV2($data['phone']);
+        $ph = $this->normalizeMobileNumber($cc, $data['phone']);
         $phoneE164 = $otp->phoneE164ForRequest($cc, $ph);
 
         $check = $otp->verifyOtp($data['otp_token'], 'register', $phoneE164, $data['code']);
@@ -185,7 +185,7 @@ class AuthController extends \App\Http\Controllers\Api\V1\AuthController
         ] + $this->coordinatesRules(), $this->dateOfBirthValidationMessages(required: true));
 
         $cc = $this->normalizeCountryCodeV2($data['country_code']);
-        $ph = $this->normalizePhoneV2($data['phone']);
+        $ph = $this->normalizeMobileNumber($cc, $data['phone']);
         $phoneE164 = $cc . $ph;
 
         $check = $this->verifyVerifiedTokenV2($data['verified_token'], 'register_verified', $phoneE164);

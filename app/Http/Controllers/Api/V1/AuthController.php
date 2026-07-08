@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Services\ImageCompressionService;
 use App\Services\UserLocationService;
 use App\Support\MediaStorage;
+use App\Services\MessageCentralOtpService;
 use App\Services\OtpDeliveryService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
@@ -781,7 +782,7 @@ class AuthController extends Controller
         ]);
 
         $cc = $this->normalizeCountryCode($data['country_code']);
-        $ph = $this->normalizePhone($data['phone']);
+        $ph = $this->normalizeMobileNumber($cc, $data['phone']);
         $phoneE164 = $cc . $ph;
 
         $user = User::where('country_code', $cc)->where('phone', $ph)->first();
@@ -834,7 +835,7 @@ class AuthController extends Controller
         ]);
 
         $cc = $this->normalizeCountryCode($data['country_code']);
-        $ph = $this->normalizePhone($data['phone']);
+        $ph = $this->normalizeMobileNumber($cc, $data['phone']);
         $phoneE164 = $otp->phoneE164ForRequest($cc, $ph);
 
         $check = $otp->verifyOtp($data['otp_token'], 'forgot_password', $phoneE164, $data['code']);
@@ -1110,6 +1111,18 @@ class AuthController extends Controller
     {
         $p = preg_replace('/[\s\-]+/', '', trim($phone));
         return ltrim($p, '0');
+    }
+
+    /**
+     * National mobile digits for DB lookup and OTP (strips +961 / 961 prefix).
+     * e.g. +961 + 96171887115 → 71887115, +961 + 70657961 → 70657961
+     */
+    protected function normalizeMobileNumber(string $countryCode, string $phone): string
+    {
+        $mc = app(MessageCentralOtpService::class);
+        $ccDigits = $mc->countryCodeDigits($this->normalizeCountryCode($countryCode));
+
+        return $mc->mobileNumberDigits($ccDigits, $phone);
     }
     
     

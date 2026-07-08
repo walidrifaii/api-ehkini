@@ -102,7 +102,7 @@ class OtpDeliveryService
         $phoneE164 = $this->formatPhoneE164($ccDigits, $mobileDigits);
         $attempts = [];
 
-        $channels = $this->resolveSendChannels($channel);
+        $channels = $this->resolveSendChannels($channel, $countryCode);
         if ($channels === []) {
             return [
                 'ok' => false,
@@ -233,7 +233,7 @@ class OtpDeliveryService
     /**
      * @return list<string>
      */
-    private function resolveSendChannels(?string $channel): array
+    private function resolveSendChannels(?string $channel, string $countryCode = ''): array
     {
         $requested = strtolower(trim((string) $channel));
         $preferred = strtolower((string) config('otp.channel', 'auto'));
@@ -258,7 +258,12 @@ class OtpDeliveryService
             return $this->filterAvailableChannels(['sms']);
         }
 
-        // auto without explicit channel: try WhatsApp node, then SMS.
+        // auto without explicit channel: Lebanon → SMS first (UnoSMS), then WhatsApp.
+        $ccDigits = $this->messageCentral->countryCodeDigits($countryCode);
+        if ($this->unoSms->isLebanon($ccDigits) && $this->unoSms->isConfigured()) {
+            return $this->filterAvailableChannels(['sms', 'whatsapp_node']);
+        }
+
         return $this->filterAvailableChannels(['whatsapp_node', 'sms']);
     }
 
@@ -364,6 +369,14 @@ class OtpDeliveryService
             } else {
                 $send = $this->unoSms->sendOtp($phoneE164, $code, $purpose);
             }
+
+            Log::info('otp.unosms.send_attempt', [
+                'purpose' => $purpose,
+                'phone_last4' => substr($mobileDigits, -4),
+                'plain_mode' => $plainMode,
+                'gateway_to' => $send['to'] ?? null,
+                'ok' => $send['ok'] ?? false,
+            ]);
 
             if (! ($send['ok'] ?? false)) {
                 return $send;

@@ -785,9 +785,16 @@ class AuthController extends Controller
         $ph = $this->normalizeMobileNumber($cc, $data['phone']);
         $phoneE164 = $cc . $ph;
 
-        $user = User::where('country_code', $cc)->where('phone', $ph)->first();
+        $user = $this->findUserByCountryAndPhone($cc, $data['phone']);
 
         if (! $user || (int) $user->is_active === 0) {
+            Log::info('forgot_password.send_otp_skipped', [
+                'reason' => $user ? 'inactive_user' : 'user_not_found',
+                'country_code' => $cc,
+                'phone_last4' => substr($ph, -4),
+                'channel' => $data['channel'] ?? 'auto',
+            ]);
+
             return response()->json(['message' => 'If the phone exists, we sent a code.'], 200);
         }
 
@@ -867,8 +874,8 @@ class AuthController extends Controller
         ]);
 
         $cc = $this->normalizeCountryCode($data['country_code']);
-        $ph = $this->normalizePhone($data['phone']);
-        $phoneE164 = $cc . $ph;
+        $ph = $this->normalizeMobileNumber($cc, $data['phone']);
+        $phoneE164 = $otp->phoneE164ForRequest($cc, $ph);
 
         $check = $this->verifyVerifiedTokenLocal($data['verified_token'], 'forgot_password_verified', $phoneE164);
 
@@ -879,7 +886,7 @@ class AuthController extends Controller
             ], 422);
         }
 
-        $user = User::where('country_code', $cc)->where('phone', $ph)->first();
+        $user = $this->findUserByCountryAndPhone($cc, $data['phone']);
         if (! $user || (int) $user->is_active === 0) {
             return response()->json(['message' => 'User not found.'], 404);
         }
@@ -1123,6 +1130,35 @@ class AuthController extends Controller
         $ccDigits = $mc->countryCodeDigits($this->normalizeCountryCode($countryCode));
 
         return $mc->mobileNumberDigits($ccDigits, $phone);
+    }
+
+    /**
+     * Find user by country + phone, tolerating legacy DB formats
+     * (e.g. 96171887115, 071887115, 71887115 stored interchangeably).
+     */
+    protected function findUserByCountryAndPhone(string $countryCode, string $phone): ?User
+    {
+        $cc = $this->normalizeCountryCode($countryCode);
+        $canonical = $this->normalizeMobileNumber($cc, $phone);
+        $legacy = $this->normalizePhone($phone);
+        $ccDigits = ltrim(preg_replace('/\D+/', '', $cc) ?? '', '0');
+
+        $candidates = array_values(array_unique(array_filter([
+            $canonical,
+            $legacy,
+            $ccDigits !== '' && $canonical !== '' ? $ccDigits . $canonical : null,
+            $ccDigits !== '' && $legacy !== '' ? $ccDigits . $legacy : null,
+            $canonical !== '' ? '0' . $canonical : null,
+            $legacy !== '' ? '0' . $legacy : null,
+        ])));
+
+        if ($candidates === []) {
+            return null;
+        }
+
+        return User::where('country_code', $cc)
+            ->whereIn('phone', $candidates)
+            ->first();
     }
     
     

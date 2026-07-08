@@ -30,9 +30,7 @@ class AuthController extends \App\Http\Controllers\Api\V1\AuthController
         $countryCode = $this->normalizeCountryCodeV2($data['country_code']);
         $phone = $this->normalizeMobileNumber($countryCode, $data['phone']);
 
-        $user = User::where('country_code', $countryCode)
-            ->where('phone', $phone)
-            ->first();
+        $user = $this->findUserByCountryAndPhone($countryCode, $data['phone']);
 
         if (! $user) {
             return response()->json([
@@ -79,9 +77,8 @@ class AuthController extends \App\Http\Controllers\Api\V1\AuthController
 
         $cc = $this->normalizeCountryCodeV2($data['country_code']);
         $ph = $this->normalizeMobileNumber($cc, $data['phone']);
-        $phoneE164 = $cc . $ph;
 
-        $exists = User::where('country_code', $cc)->where('phone', $ph)->exists();
+        $exists = $this->findUserByCountryAndPhone($cc, $data['phone']) !== null;
         if ($exists) {
             throw ValidationException::withMessages([
                 'phone' => 'Phone already exists.',

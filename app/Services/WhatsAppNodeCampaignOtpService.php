@@ -87,7 +87,7 @@ class WhatsAppNodeCampaignOtpService
             throw new \RuntimeException('OTP_PEPPER missing');
         }
 
-        $code = $this->normalizeOtpCode($code);
+-        $code = $this->normalizeOtpCode($code);
         $canonicalPhone = $this->canonicalPhoneE164($phoneE164);
 
         $payload = [

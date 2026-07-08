@@ -47,6 +47,8 @@ return [
         'pass' => (string) env('UNOSMS_PASS', ''),
         'from' => (string) env('UNOSMS_FROM', 'Ehkini'),
         'timeout' => (int) env('UNOSMS_TIMEOUT', 15),
+        // national = 71887115 (recommended for Lebanon) | international = 96171887115
+        'phone_format' => strtolower((string) env('UNOSMS_PHONE_FORMAT', 'national')),
         'country_codes' => array_values(array_filter(array_map(
             'trim',
             explode(',', (string) env('OTP_UNOSMS_COUNTRY_CODES', '961')),

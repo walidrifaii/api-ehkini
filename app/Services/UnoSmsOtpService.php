@@ -52,7 +52,32 @@ class UnoSmsOtpService
     }
 
     /**
-     * @return array{ok: bool, error?: string, channel?: string, otp_token?: string, expires_in?: int, http?: int, body?: string, detail?: string}
+     * UnoSMS Lebanon delivery works best with national format (71887115),
+     * not international (96171887115). Configurable via UNOSMS_PHONE_FORMAT.
+     */
+    public function formatToNumber(string $phoneE164): string
+    {
+        $digits = $this->phoneDigits($phoneE164);
+        if ($digits === '') {
+            return '';
+        }
+
+        $format = strtolower((string) config('otp.unosms.phone_format', 'national'));
+        if ($format === 'international') {
+            return $digits;
+        }
+
+        foreach ($this->countryCodes() as $cc) {
+            if ($cc !== '' && str_starts_with($digits, $cc) && strlen($digits) > strlen($cc)) {
+                return ltrim(substr($digits, strlen($cc)), '0');
+            }
+        }
+
+        return ltrim($digits, '0');
+    }
+
+    /**
+     * @return array{ok: bool, error?: string, channel?: string, otp_token?: string, expires_in?: int, http?: int, body?: string, detail?: string, to?: string}
      */
     public function sendOtp(string $phoneE164, string $code, string $purpose = 'register'): array
     {
@@ -60,18 +85,38 @@ class UnoSmsOtpService
             return ['ok' => false, 'error' => 'unosms_not_configured'];
         }
 
-        $cleanPhone = $this->phoneDigits($phoneE164);
-        if ($cleanPhone === '') {
+        $toNumber = $this->formatToNumber($phoneE164);
+        if ($toNumber === '') {
             return ['ok' => false, 'error' => 'invalid_phone'];
         }
 
+        $send = $this->dispatchSend($toNumber, $code);
+        if (! ($send['ok'] ?? false)) {
+            $international = $this->phoneDigits($phoneE164);
+            if ($international !== '' && $international !== $toNumber) {
+                Log::info('unosms.retry_international', [
+                    'from' => $toNumber,
+                    'to' => $international,
+                ]);
+                $send = $this->dispatchSend($international, $code);
+            }
+        }
+
+        return $send;
+    }
+
+    /**
+     * @return array{ok: bool, error?: string, http?: int, body?: string, detail?: string, to?: string}
+     */
+    private function dispatchSend(string $toNumber, string $code): array
+    {
         $cfg = config('otp.unosms');
         $message = 'Your verification code is ' . $code . '. Valid for 5 minutes.';
 
         $params = [
             'user' => (string) $cfg['user'],
             'pass' => (string) $cfg['pass'],
-            'to' => $cleanPhone,
+            'to' => $toNumber,
             'from' => (string) ($cfg['from'] ?? 'Ehkini'),
             'msg' => $message,
         ];
@@ -87,13 +132,15 @@ class UnoSmsOtpService
         } catch (\Throwable $e) {
             Log::error('unosms.request_failed', [
                 'error' => $e->getMessage(),
-                'to_last4' => substr($cleanPhone, -4),
+                'to' => $toNumber,
+                'to_last4' => substr($toNumber, -4),
             ]);
 
             return [
                 'ok' => false,
                 'error' => 'SMS service is not reachable',
                 'detail' => $e->getMessage(),
+                'to' => $toNumber,
             ];
         }
 
@@ -104,7 +151,8 @@ class UnoSmsOtpService
             Log::warning('unosms.send_failed', [
                 'http' => $response->status(),
                 'body' => $body,
-                'to_last4' => substr($cleanPhone, -4),
+                'to' => $toNumber,
+                'to_last4' => substr($toNumber, -4),
             ]);
 
             return [
@@ -112,24 +160,27 @@ class UnoSmsOtpService
                 'error' => (string) ($parsed['error'] ?? ($body !== '' ? $body : 'unosms_send_failed')),
                 'http' => $response->status(),
                 'body' => $body,
+                'to' => $toNumber,
             ];
         }
 
         Log::info('unosms.send_ok', [
             'http' => $response->status(),
             'body' => $body,
-            'to_last4' => substr($cleanPhone, -4),
+            'to' => $toNumber,
+            'to_last4' => substr($toNumber, -4),
         ]);
 
         return [
             'ok' => true,
             'body' => $body,
+            'to' => $toNumber,
         ];
     }
 
     /**
-     * UnoSMS gateways often return a numeric message id, "OK", or plain text on success.
-     * The old substring check for "error" caused false failures while SMS was still delivered.
+     * Parse UnoSMS gateway body. Example success:
+     * "OK:1 ; Total: 1; Invalid: 0; Total cost: 0.024; Credit remaining: 7.299"
      *
      * @return array{ok: bool, error?: string}
      */
@@ -138,7 +189,30 @@ class UnoSmsOtpService
         $trimmed = trim($body);
         $lower = strtolower($trimmed);
 
-        if ($trimmed === '' && $httpStatus >= 200 && $httpStatus < 300) {
+        if ($httpStatus < 200 || $httpStatus >= 300) {
+            return [
+                'ok' => false,
+                'error' => $trimmed !== '' ? $trimmed : 'unosms_send_failed',
+            ];
+        }
+
+        if (preg_match('/OK:\s*(\d+)\s*;.*?Invalid:\s*(\d+)/i', $trimmed, $m)) {
+            $okCount = (int) $m[1];
+            $invalidCount = (int) $m[2];
+
+            if ($okCount >= 1 && $invalidCount === 0) {
+                return ['ok' => true];
+            }
+
+            return [
+                'ok' => false,
+                'error' => $trimmed !== ''
+                    ? $trimmed
+                    : 'unosms_rejected_number',
+            ];
+        }
+
+        if ($trimmed === '') {
             return ['ok' => true];
         }
 
@@ -162,6 +236,7 @@ class UnoSmsOtpService
             '/authentication\s+failed/i',
             '/unauthorized/i',
             '/bad\s+request/i',
+            '/invalid:\s*[1-9]/i',
         ];
 
         foreach ($failurePatterns as $pattern) {
@@ -173,14 +248,6 @@ class UnoSmsOtpService
             }
         }
 
-        if ($httpStatus < 200 || $httpStatus >= 300) {
-            return [
-                'ok' => false,
-                'error' => $trimmed !== '' ? $trimmed : 'unosms_send_failed',
-            ];
-        }
-
-        // HTTP 2xx with an unknown body: treat as success (SMS gateways vary widely).
         return ['ok' => true];
     }
 }

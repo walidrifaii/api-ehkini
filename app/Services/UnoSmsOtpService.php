@@ -90,10 +90,9 @@ class UnoSmsOtpService
             return ['ok' => false, 'error' => 'invalid_phone'];
         }
 
-        $send = $this->dispatchSend(
-            $toNumber,
-            'Your verification code is ' . $code . '. Valid for 5 minutes.',
-        );
+        $message = $this->buildOtpMessage($code);
+
+        $send = $this->dispatchSend($toNumber, $message);
         if (! ($send['ok'] ?? false)) {
             $international = $this->phoneDigits($phoneE164);
             if ($international !== '' && $international !== $toNumber) {
@@ -101,14 +100,25 @@ class UnoSmsOtpService
                     'from' => $toNumber,
                     'to' => $international,
                 ]);
-                $send = $this->dispatchSend(
-                    $international,
-                    'Your verification code is ' . $code . '. Valid for 5 minutes.',
-                );
+                $send = $this->dispatchSend($international, $message);
             }
         }
 
         return $send;
+    }
+
+    private function buildOtpMessage(string $code): string
+    {
+        $template = trim((string) config('otp.unosms.otp_message_template', 'Ehkini code: {code}'));
+        if ($template === '') {
+            $template = 'Ehkini code: {code}';
+        }
+
+        if (str_contains($template, '{code}')) {
+            return str_replace('{code}', $code, $template);
+        }
+
+        return $template . ' ' . $code;
     }
 
     /**

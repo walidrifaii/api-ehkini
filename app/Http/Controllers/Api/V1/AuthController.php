@@ -827,7 +827,10 @@ class AuthController extends Controller
         }
 
         return response()->json(
-            $otp->buildOtpSendHttpResponse($send, 'OTP sent.'),
+            array_merge(
+                $otp->buildOtpSendHttpResponse($send, 'OTP sent.'),
+                ['delivery_channel' => $send['channel'] ?? ($data['channel'] ?? 'auto')],
+            ),
             200,
         );
     }

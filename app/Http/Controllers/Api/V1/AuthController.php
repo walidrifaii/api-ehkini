@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Mail\NewDeviceLoginMail;
 use App\Models\Friendship;
 use App\Models\GiftTransaction;
 use App\Models\User;
+use App\Services\FcmService;
 use App\Services\ImageCompressionService;
 use App\Services\UserLocationService;
 use App\Support\MediaStorage;
@@ -16,6 +18,7 @@ use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
@@ -235,6 +238,8 @@ class AuthController extends Controller
             return response()->json(['message' => 'This account is Deleted.'], 403);
         }
 
+        $oldFcmToken = $user->fcm_token;
+
         $user->tokens()->delete();
 
         $update = [];
@@ -266,6 +271,8 @@ class AuthController extends Controller
         }
 
         $token = $user->createToken('api')->plainTextToken;
+
+        $this->notifyOtherDeviceOfNewLogin($user, $oldFcmToken, $data['fcm_token'] ?? null);
 
         return response()->json([
             'message' => 'Login successful.',
@@ -301,6 +308,8 @@ class AuthController extends Controller
             return response()->json(['message' => 'This account is Deleted.'], 403);
         }
 
+        $oldFcmToken = $user->fcm_token;
+
         $user->tokens()->delete();
 
         $update = [];
@@ -333,11 +342,51 @@ class AuthController extends Controller
 
         $token = $user->createToken('api')->plainTextToken;
 
+        $this->notifyOtherDeviceOfNewLogin($user, $oldFcmToken, $data['fcm_token'] ?? null);
+
         return response()->json([
             'message' => 'Login successful.',
             'token'   => $token,
             'user'    => $user,
         ]);
+    }
+
+    /**
+     * Best-effort alert to the account's previously-known device that a new
+     * login just happened elsewhere. Informational only — never blocks or
+     * affects the login response if push/email delivery fails.
+     */
+    private function notifyOtherDeviceOfNewLogin(User $user, ?string $oldFcmToken, ?string $newFcmToken): void
+    {
+        $oldFcmToken = trim((string) $oldFcmToken);
+        $newFcmToken = trim((string) $newFcmToken);
+
+        if ($oldFcmToken !== '' && $oldFcmToken !== $newFcmToken) {
+            try {
+                app(FcmService::class)->sendToToken(
+                    $oldFcmToken,
+                    'New login to your account',
+                    'Your Ehkini account was just signed in from another device.',
+                    ['type' => 'new_device_login'],
+                );
+            } catch (\Throwable $e) {
+                Log::warning('login_alert.push_failed', [
+                    'user_id' => $user->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        if (!empty($user->email) && !empty($user->email_verified_at)) {
+            try {
+                Mail::to($user->email)->send(new NewDeviceLoginMail((string) ($user->first_name ?? '')));
+            } catch (\Throwable $e) {
+                Log::warning('login_alert.email_failed', [
+                    'user_id' => $user->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
     }
 
     /**

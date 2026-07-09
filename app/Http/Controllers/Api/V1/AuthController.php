@@ -358,7 +358,7 @@ class AuthController extends Controller
      * login just happened elsewhere. Informational only — never blocks or
      * affects the login response if push/email delivery fails.
      */
-    private function notifyOtherDeviceOfNewLogin(User $user, ?string $oldFcmToken, ?string $newFcmToken): void
+    protected function notifyOtherDeviceOfNewLogin(User $user, ?string $oldFcmToken, ?string $newFcmToken): void
     {
         $oldFcmToken = trim((string) $oldFcmToken);
         $newFcmToken = trim((string) $newFcmToken);

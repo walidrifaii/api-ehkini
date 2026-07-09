@@ -170,7 +170,9 @@ class FaceController extends AuthController
 
         RateLimiter::clear($key);
 
-        $bestUser->tokens()->delete();
+        // Multiple devices can stay signed in concurrently — a new login no
+        // longer revokes other devices' tokens (matches phone/email login).
+        $oldFcmToken = $bestUser->fcm_token;
 
         if (! empty($data['fcm_token'])) {
             $bestUser->update([
@@ -181,6 +183,8 @@ class FaceController extends AuthController
         }
 
         $token = $bestUser->createToken('api')->plainTextToken;
+
+        $this->notifyOtherDeviceOfNewLogin($bestUser, $oldFcmToken, $data['fcm_token'] ?? null);
 
         return response()->json([
             'success' => true,

@@ -240,8 +240,9 @@ class AuthController extends Controller
 
         $oldFcmToken = $user->fcm_token;
 
-        $user->tokens()->delete();
-
+        // Multiple devices can stay signed in concurrently — a new login no
+        // longer revokes other devices' tokens (see notifyOtherDeviceOfNewLogin
+        // below for the "someone logged in elsewhere" alert instead).
         $update = [];
 
         if (!empty($data['fcm_token'])) {
@@ -310,8 +311,9 @@ class AuthController extends Controller
 
         $oldFcmToken = $user->fcm_token;
 
-        $user->tokens()->delete();
-
+        // Multiple devices can stay signed in concurrently — a new login no
+        // longer revokes other devices' tokens (see notifyOtherDeviceOfNewLogin
+        // below for the "someone logged in elsewhere" alert instead).
         $update = [];
 
         if (!empty($data['fcm_token'])) {

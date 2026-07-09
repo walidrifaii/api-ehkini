@@ -2,8 +2,10 @@
 
 namespace App\Services;
 
+use App\Mail\EmailOtpMail;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
 class OtpDeliveryService
@@ -228,6 +230,132 @@ class OtpDeliveryService
     public function verifyVerifiedToken(string $token, string $purpose, string $phoneE164): array
     {
         return $this->whatsAppNode->verifyVerifiedToken($token, $purpose, $phoneE164);
+    }
+
+    /**
+     * Self-contained email OTP: unlike phone OTP, this doesn't depend on any
+     * external provider — the code hash travels inside the encrypted token itself.
+     *
+     * @return array{ok:bool, otp_token?:string, channel?:string, expires_in?:int, error?:string}
+     */
+    public function sendEmailOtp(string $purpose, string $email): array
+    {
+        $email = strtolower(trim($email));
+        if ($this->localOtpPepper() === '') {
+            Log::error('otp.email.token_build_failed', ['reason' => 'otp_pepper_missing']);
+
+            return ['ok' => false, 'error' => 'otp_pepper_missing'];
+        }
+
+        $code = (string) random_int(100000, 999999);
+
+        try {
+            Mail::to($email)->send(new EmailOtpMail($code));
+        } catch (\Throwable $e) {
+            Log::error('otp.email.send_failed', [
+                'purpose' => $purpose,
+                'error' => $e->getMessage(),
+            ]);
+
+            return ['ok' => false, 'error' => 'email_send_failed'];
+        }
+
+        return [
+            'ok' => true,
+            'otp_token' => $this->buildEmailOtpToken($purpose, $email, $code),
+            'channel' => 'email',
+            'expires_in' => $this->ttlSeconds(),
+        ];
+    }
+
+    /**
+     * @return array{ok:bool, error?:string}
+     */
+    public function verifyEmailOtp(string $token, string $purpose, string $email, string $code): array
+    {
+        $code = $this->normalizeOtpCode($code);
+        if (strlen($code) !== 6) {
+            return ['ok' => false, 'error' => 'invalid_code'];
+        }
+
+        $payload = $this->decodeToken($token);
+        if ($payload === null) {
+            return ['ok' => false, 'error' => 'invalid_token'];
+        }
+
+        if (($payload['purpose'] ?? null) !== $purpose) {
+            return ['ok' => false, 'error' => 'wrong_purpose'];
+        }
+        if (! $this->emailsMatch((string) ($payload['email'] ?? ''), $email)) {
+            return ['ok' => false, 'error' => 'wrong_email'];
+        }
+        if ((int) ($payload['exp'] ?? 0) < now()->timestamp) {
+            return ['ok' => false, 'error' => 'expired'];
+        }
+
+        $expectedHash = (string) ($payload['code_hash'] ?? '');
+        $actualHash = hash_hmac('sha256', $code, $this->localOtpPepper());
+        if ($expectedHash === '' || ! hash_equals($expectedHash, $actualHash)) {
+            return ['ok' => false, 'error' => 'invalid_code'];
+        }
+
+        return ['ok' => true];
+    }
+
+    public function buildVerifiedEmailToken(string $purpose, string $email): string
+    {
+        $payload = [
+            'v' => 1,
+            'purpose' => $purpose,
+            'email' => strtolower(trim($email)),
+            'exp' => now()->addSeconds($this->ttlSeconds())->timestamp,
+        ];
+
+        return Crypt::encryptString(json_encode($payload, JSON_UNESCAPED_UNICODE));
+    }
+
+    /**
+     * @return array{ok:bool, error?:string}
+     */
+    public function verifyVerifiedEmailToken(string $token, string $purpose, string $email): array
+    {
+        $payload = $this->decodeToken($token);
+        if ($payload === null) {
+            return ['ok' => false, 'error' => 'invalid_token'];
+        }
+
+        if (($payload['purpose'] ?? null) !== $purpose) {
+            return ['ok' => false, 'error' => 'wrong_purpose'];
+        }
+        if (! $this->emailsMatch((string) ($payload['email'] ?? ''), $email)) {
+            return ['ok' => false, 'error' => 'wrong_email'];
+        }
+        if ((int) ($payload['exp'] ?? 0) < now()->timestamp) {
+            return ['ok' => false, 'error' => 'expired'];
+        }
+
+        return ['ok' => true];
+    }
+
+    private function emailsMatch(string $emailA, string $emailB): bool
+    {
+        $a = strtolower(trim($emailA));
+        $b = strtolower(trim($emailB));
+
+        return $a !== '' && $a === $b;
+    }
+
+    private function buildEmailOtpToken(string $purpose, string $email, string $code): string
+    {
+        $payload = [
+            'v' => 1,
+            'purpose' => $purpose,
+            'email' => $email,
+            'code_hash' => hash_hmac('sha256', $code, $this->localOtpPepper()),
+            'exp' => now()->addSeconds($this->ttlSeconds())->timestamp,
+        ];
+
+        return Crypt::encryptString(json_encode($payload, JSON_UNESCAPED_UNICODE));
     }
 
     /**

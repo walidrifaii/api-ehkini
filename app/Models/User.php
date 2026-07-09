@@ -24,6 +24,9 @@ class User extends Authenticatable
         'country_id',
         'phone',
 
+        'email',
+        'email_verified_at',
+
         'password',
         'date_of_birth',
         'gender',
@@ -55,6 +58,7 @@ class User extends Authenticatable
      */
     protected $casts = [
         'date_of_birth'    => 'date',
+        'email_verified_at' => 'datetime',
         'token_updated_at' => 'datetime',
         'location_updated_at' => 'datetime',
         'location_sharing_enabled' => 'boolean',

@@ -90,6 +90,7 @@ $versionedApiRoutes = function (array $controllers) {
     
     
     Route::post('/login', [$controllers['auth'], 'login']);
+    Route::post('/login-email', [$controllers['auth'], 'loginEmail']);
     Route::get('/pages/{slug}', [$controllers['page'], 'show']);
     Route::post('/check-phone', [$controllers['auth'], 'checkPhone']);
 
@@ -243,6 +244,11 @@ Route::prefix('v2')->group(function () use ($v2Controllers) {
     Route::post('/register/send-otp', [$v2Controllers['auth'], 'registerSendOtp']);
     Route::post('/register/verify-otp', [$v2Controllers['auth'], 'registerVerifyOtp']);
     Route::post('/register/complete', [$v2Controllers['auth'], 'registerComplete']);
+
+    // Optional email registration path (alternative to phone above).
+    Route::post('/register-email/send-otp', [$v2Controllers['auth'], 'registerEmailSendOtp']);
+    Route::post('/register-email/verify-otp', [$v2Controllers['auth'], 'registerEmailVerifyOtp']);
+    Route::post('/register-email/complete', [$v2Controllers['auth'], 'registerEmailComplete']);
 });
 // V3-only face authentication (does not affect v1/v2).
 Route::prefix('v3')->group(function () {

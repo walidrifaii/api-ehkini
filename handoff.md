@@ -15,7 +15,7 @@
 |------|--------|
 | Local path | `ehkini/api-ehkini` |
 | Branch | `main` (tracks `origin/main`, clean) |
-| Recent focus | OTP — Lebanon UnoSMS normalize/send order, pepper fallback (`APP_KEY`) |
+| Recent focus | Face ID auth (v3 routes, duplicate-face blocking) + earlier OTP Lebanon UnoSMS fixes |
 | Mobile client | `ehkini/TaarufApp` → `lib/config/api_config.dart` |
 
 ---
@@ -116,6 +116,7 @@ Fill from `.env.example`. Secrets must exist on Easypanel (or local `.env`), not
 | **FCM** | `FCM_PROJECT_ID` (e.g. `taaruf-f15c3`), credentials via JSON / base64 / file — then `php artisan fcm:check` |
 | **OTP** | Channel routing + WhatsApp node + Message Central + **Lebanon UnoSMS** (`OTP_UNOSMS_*`, country `961`) |
 | **Agora** | `AGORA_APP_ID`, `AGORA_APP_CERTIFICATE` (required for `/agora/token`) |
+| **Face ID** | `FACE_AI_SERVICE_URL`, `FACE_AI_API_KEY`, `FACE_SIMILARITY_THRESHOLD`, `FACE_DUPLICATE_THRESHOLD`, face login rate-limit vars |
 | **Swagger** | `L5_SWAGGER_*` tied to `APP_URL` |
 
 ### OTP routing (mental model)
@@ -168,12 +169,13 @@ Tools-master/                   # Upstream Agora sample toolkit (not app runtime
 
 | System | Responsibility |
 |--------|----------------|
-| MySQL | Source of truth for users, friends, gifts, wallet, translations, pages |
+| MySQL | Source of truth for users, friends, gifts, wallet, translations, pages, and encrypted face embeddings (`user_face_embeddings`) |
 | Remote upload / ImageKit | Profile/post/story/gift images & video |
 | FCM | Push for chat/call/gift (service account required) |
 | Agora | Token mint for voice/video (`GET /api/v2/agora/token`) |
 | WhatsApp node | OTP via WA (separate Easypanel service) |
 | UnoSMS / Message Central | SMS OTP |
+| Face AI service (`face-ai-service`) | Embedding extraction / verify / challenge endpoints consumed by Laravel v3 face auth |
 | Firebase client | Chat + presence live in the Flutter app, not this DB |
 
 Mobile ↔ API contract notes also live in `TaarufApp/handoff.md` and `TaarufApp/APP_DOCUMENTATION.md`.
@@ -190,10 +192,61 @@ Mobile ↔ API contract notes also live in `TaarufApp/handoff.md` and `TaarufApp
 6. **FCM** — After env change: `php artisan config:clear` then `fcm:check`.
 7. **Public notify/upload routes** — Several chat/call/media endpoints are outside `auth:sanctum` in `routes/api.php`; treat as sensitive when hardening.
 8. **`Tools-master/`** — Vendor sample tree for Agora; not required to run the API.
+9. **Face auth is v3-only** — mobile Face ID endpoints use `/api/v3/*`; don’t accidentally patch only v1/v2 auth routes.
+10. **Duplicate-face blocking is server-side** — if the same face still registers on another account, first confirm the latest Laravel deploy is live, then run `php artisan config:clear` so `FACE_DUPLICATE_THRESHOLD` and new config are loaded.
 
 ---
 
-## 9. First-day checklist for a new owner
+## 9. Face ID handoff notes
+
+Current face auth flow lives in `app/Http/Controllers/Api/V3/FaceController.php` and `app/Services/FaceRecognitionService.php`.
+
+### Current behavior
+
+- Registration: `POST /api/v3/register-face`
+- Login: `POST /api/v3/login-face`
+- Challenge/status helpers: `/api/v3/face/*`
+- Embeddings are stored encrypted in MySQL table `user_face_embeddings`
+- Flutter never calls the Python service directly; Laravel proxies all face operations
+
+### Duplicate-face issue and current fix
+
+The product requirement is **one face per account** because Face ID login is now face-only (no phone number during login). A duplicate-face guard was added on registration:
+
+- collect the embeddings returned from all captured registration images
+- compare them against all other saved embeddings
+- reject with HTTP `409` and code `face_already_registered` when similarity is above the duplicate threshold
+
+Current knobs:
+
+- `FACE_SIMILARITY_THRESHOLD` — login threshold (default `0.80`)
+- `FACE_DUPLICATE_THRESHOLD` — duplicate-register threshold (currently defaults/falls back to `FACE_SIMILARITY_THRESHOLD`)
+
+### Important troubleshooting note
+
+User reported that the same face **still registered on another account** after the first duplicate-block patch. The likely causes were:
+
+1. Laravel deploy/cache not refreshed
+2. duplicate threshold too strict
+3. only one captured registration embedding being checked
+4. stored embedding retrieval needing safer raw decryption
+
+Follow-up changes were applied to address that:
+
+- duplicate check now evaluates **all captured registration embeddings**
+- duplicate threshold now falls back to the login threshold (`0.80`)
+- `UserFaceEmbedding::getEmbeddingVector()` now reads the raw encrypted DB value and handles decrypt failures safely
+- extra logging was added around duplicate checks / empty stored embeddings
+
+If the issue reappears in production, inspect Laravel logs for:
+
+- `face_register.duplicate_blocked`
+- `face_register.duplicate_check_passed`
+- `face_register.empty_stored_embedding`
+
+---
+
+## 10. First-day checklist for a new owner
 
 1. Copy `.env.example` → `.env`; set DB, `APP_URL`, FCM, OTP, Agora, media upload.
 2. `composer install` → `migrate` → `artisan serve`.
@@ -205,7 +258,7 @@ Mobile ↔ API contract notes also live in `TaarufApp/handoff.md` and `TaarufApp
 
 ---
 
-## 10. Related
+## 11. Related
 
 | Path | Why |
 |------|-----|

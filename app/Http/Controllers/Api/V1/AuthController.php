@@ -275,6 +275,72 @@ class AuthController extends Controller
     }
 
     /**
+     * POST /api/v1/login-email
+     * Optional email+password login for accounts registered via the email path.
+     */
+    public function loginEmail(Request $request)
+    {
+        $data = $request->validate([
+            'email'     => ['required', 'string', 'email', 'max:255'],
+            'password'  => ['required', 'string'],
+
+            'fcm_token' => ['nullable', 'string', 'max:512'],
+            'platform'  => ['nullable', 'in:android,ios,web'],
+            'location'  => ['nullable', 'string', 'max:255'],
+        ] + $this->coordinatesRules());
+
+        $email = strtolower(trim($data['email']));
+
+        $user = User::where('email', $email)->first();
+
+        if (! $user || ! Hash::check($data['password'], $user->password)) {
+            return response()->json(['message' => 'Invalid credentials.'], 401);
+        }
+
+        if ((int) $user->is_active === 0) {
+            return response()->json(['message' => 'This account is Deleted.'], 403);
+        }
+
+        $user->tokens()->delete();
+
+        $update = [];
+
+        if (!empty($data['fcm_token'])) {
+            $update['fcm_token'] = $data['fcm_token'];
+            $update['platform'] = $data['platform'] ?? $user->platform;
+            $update['token_updated_at'] = now();
+        }
+
+        if (array_key_exists('location', $data) && $data['location'] !== null) {
+            $update['location'] = $data['location'];
+        }
+
+        if (array_key_exists('latitude', $data) && $data['latitude'] !== null) {
+            $update['latitude'] = $data['latitude'];
+        }
+
+        if (array_key_exists('longitude', $data) && $data['longitude'] !== null) {
+            $update['longitude'] = $data['longitude'];
+        }
+
+        if (isset($update['latitude'], $update['longitude'])) {
+            $update['location_updated_at'] = now();
+        }
+
+        if (!empty($update)) {
+            $user->update($update);
+        }
+
+        $token = $user->createToken('api')->plainTextToken;
+
+        return response()->json([
+            'message' => 'Login successful.',
+            'token'   => $token,
+            'user'    => $user,
+        ]);
+    }
+
+    /**
      * GET /api/v1/me
      */
     public function me(Request $request)

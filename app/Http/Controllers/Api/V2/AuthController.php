@@ -244,6 +244,173 @@ class AuthController extends \App\Http\Controllers\Api\V1\AuthController
         ], 201);
     }
 
+    /**
+     * POST /api/v2/register-email/send-otp
+     * Step 1 of the optional email registration path (mirrors phone's
+     * register/send-otp, but self-contained — no phone/country_code involved).
+     */
+    public function registerEmailSendOtp(Request $request, OtpDeliveryService $otp)
+    {
+        $data = $request->validate([
+            'email' => ['required', 'string', 'email', 'max:255'],
+        ]);
+
+        $email = strtolower(trim($data['email']));
+
+        $exists = User::where('email', $email)->exists();
+        if ($exists) {
+            throw ValidationException::withMessages([
+                'email' => 'Email already exists.',
+            ]);
+        }
+
+        try {
+            $send = $otp->sendEmailOtp('register_email', $email);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'message' => 'Failed to send OTP.',
+                'error' => 'otp_send_exception',
+                'detail' => $e->getMessage(),
+            ], 502);
+        }
+
+        if (!($send['ok'] ?? false)) {
+            Log::warning('otp.register_email_send_failed', [
+                'error' => $send['error'] ?? null,
+            ]);
+
+            $payload = [
+                'message' => api_trans('failed_to_send_otp'),
+                'error' => $send['error'] ?? 'otp_send_failed',
+            ];
+
+            if (config('app.debug')) {
+                $payload['debug'] = $send;
+            }
+
+            return response()->json($payload, 502);
+        }
+
+        return response()->json(
+            $otp->buildOtpSendHttpResponse($send, 'OTP sent.'),
+            200,
+        );
+    }
+
+    /**
+     * POST /api/v2/register-email/verify-otp
+     */
+    public function registerEmailVerifyOtp(Request $request, OtpDeliveryService $otp)
+    {
+        $data = $request->validate([
+            'email' => ['required', 'string', 'email', 'max:255'],
+            'otp_token' => ['required', 'string'],
+            'code' => ['required', 'digits:6'],
+        ]);
+
+        $email = strtolower(trim($data['email']));
+
+        $check = $otp->verifyEmailOtp($data['otp_token'], 'register_email', $email, $data['code']);
+        if (!($check['ok'] ?? false)) {
+            $payload = [
+                'message' => 'Invalid OTP.',
+                'error' => $check['error'] ?? 'invalid_otp',
+            ];
+            if (config('app.debug')) {
+                $payload['debug'] = $check;
+            }
+
+            return response()->json($payload, 422);
+        }
+
+        $verifiedToken = $otp->buildVerifiedEmailToken('register_email_verified', $email);
+
+        return response()->json([
+            'message' => 'OTP verified.',
+            'verified_token' => $verifiedToken,
+            'expires_in' => $otp->ttlSeconds(),
+        ], 200);
+    }
+
+    /**
+     * POST /api/v2/register-email/complete
+     */
+    public function registerEmailComplete(Request $request, OtpDeliveryService $otp)
+    {
+        $minAgeDate = now()->subYears(18)->format('Y-m-d');
+
+        $data = $request->validate([
+            'first_name' => ['required', 'string', 'max:100'],
+            'last_name' => ['required', 'string', 'max:100'],
+            'email' => ['required', 'string', 'email', 'max:255'],
+            'password' => ['required', 'string', 'min:6'],
+            'verified_token' => ['required', 'string'],
+            'date_of_birth' => ['required', 'date', 'before_or_equal:' . $minAgeDate],
+            'gender' => ['nullable', 'in:male,female'],
+            'location' => ['nullable', 'string', 'max:255'],
+            'occupation' => ['nullable', 'string', 'max:150'],
+            'education' => ['nullable', 'string', 'max:150'],
+            'about_me' => ['nullable', 'string', 'max:2000'],
+            'fcm_token' => ['nullable', 'string', 'max:512'],
+            'platform' => ['nullable', 'in:android,ios,web'],
+            'interests' => ['nullable', 'array'],
+            'interests.*' => ['integer', 'exists:interests,id'],
+        ] + $this->coordinatesRules(), $this->dateOfBirthValidationMessages(required: true));
+
+        $email = strtolower(trim($data['email']));
+
+        $check = $otp->verifyVerifiedEmailToken($data['verified_token'], 'register_email_verified', $email);
+        if (!($check['ok'] ?? false)) {
+            return response()->json([
+                'message' => 'Email not verified.',
+                'error' => $check['error'] ?? 'invalid_verified_token',
+            ], 422);
+        }
+
+        $existing = User::where('email', $email)->first();
+        if ($existing) {
+            throw ValidationException::withMessages([
+                'email' => 'Email already exists.',
+            ]);
+        }
+
+        $user = User::create($this->withLocationTimestamp([
+            'first_name' => $data['first_name'],
+            'last_name' => $data['last_name'],
+            'email' => $email,
+            'email_verified_at' => now(),
+            'password' => Hash::make($data['password']),
+            'date_of_birth' => $data['date_of_birth'],
+            'gender' => $data['gender'] ?? null,
+            'location' => $data['location'] ?? null,
+            'latitude' => $data['latitude'] ?? null,
+            'longitude' => $data['longitude'] ?? null,
+            'occupation' => $data['occupation'] ?? null,
+            'education' => $data['education'] ?? null,
+            'about_me' => $data['about_me'] ?? null,
+            'fcm_token' => $data['fcm_token'] ?? null,
+            'platform' => $data['platform'] ?? null,
+            'token_updated_at' => !empty($data['fcm_token']) ? now() : null,
+            'is_active' => 1,
+        ]));
+
+        if (!empty($data['interests']) && is_array($data['interests'])) {
+            $user->interests()->sync($data['interests']);
+        }
+
+        $user->load([
+            'interests:id,name',
+            'country:id,name,iso2,phone_code',
+        ]);
+        $token = $user->createToken('api')->plainTextToken;
+
+        return response()->json([
+            'message' => 'Account created successfully.',
+            'token' => $token,
+            'user' => $user,
+        ], 201);
+    }
+
     public function updateProfile(Request $request)
     {
         $this->prepareProfileUpdateRequest($request);

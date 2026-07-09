@@ -44,10 +44,12 @@ class FaceController extends AuthController
         $best = $faceService->pickBestRegistrationResult($results);
         if (! $best || empty($best['embedding'])) {
             $message = $results[0]['message'] ?? 'No valid face detected';
+            $issues = $results[0]['issues'] ?? [];
 
             return response()->json([
                 'success' => false,
                 'message' => $message,
+                'issues' => $issues,
             ], 400);
         }
 

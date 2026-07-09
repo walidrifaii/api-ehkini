@@ -46,8 +46,13 @@ class FaceRecognitionService
         return $this->parseAiResponse($response->json(), $response->status());
     }
 
-    public function verifyEmbedding(UploadedFile $image, array $storedEmbedding, ?string $challenge = null, ?UploadedFile $priorImage = null): array
-    {
+    public function verifyEmbedding(
+        UploadedFile $image,
+        array $storedEmbedding,
+        ?string $challenge = null,
+        ?UploadedFile $priorImage = null,
+        ?UploadedFile $blinkImage = null,
+    ): array {
         $request = $this->client()->attach(
             'image',
             fopen($image->getRealPath(), 'r'),
@@ -59,6 +64,14 @@ class FaceRecognitionService
                 'prior_image',
                 fopen($priorImage->getRealPath(), 'r'),
                 $priorImage->getClientOriginalName()
+            );
+        }
+
+        if ($blinkImage) {
+            $request = $request->attach(
+                'blink_image',
+                fopen($blinkImage->getRealPath(), 'r'),
+                $blinkImage->getClientOriginalName()
             );
         }
 
@@ -90,6 +103,43 @@ class FaceRecognitionService
         });
 
         return $valid[0];
+    }
+
+    public function extractEmbedding(UploadedFile $image): array
+    {
+        $response = $this->client()
+            ->attach(
+                'image',
+                fopen($image->getRealPath(), 'r'),
+                $image->getClientOriginalName()
+            )
+            ->post($this->url('/face/extract'));
+
+        return $this->parseAiResponse($response->json(), $response->status());
+    }
+
+    public function cosineSimilarity(array $probe, array $reference): float
+    {
+        $length = min(count($probe), count($reference));
+        if ($length === 0) {
+            return 0.0;
+        }
+
+        $dot = 0.0;
+        $normProbe = 0.0;
+        $normReference = 0.0;
+
+        for ($i = 0; $i < $length; $i++) {
+            $dot += (float) $probe[$i] * (float) $reference[$i];
+            $normProbe += (float) $probe[$i] * (float) $probe[$i];
+            $normReference += (float) $reference[$i] * (float) $reference[$i];
+        }
+
+        if ($normProbe <= 0.0 || $normReference <= 0.0) {
+            return 0.0;
+        }
+
+        return $dot / (sqrt($normProbe) * sqrt($normReference));
     }
 
     protected function client()

@@ -80,65 +80,17 @@ class FaceController extends AuthController
         }
 
         $data = $request->validate([
-            'country_code' => ['required', 'string', 'max:6'],
-            'phone' => ['required', 'string', 'max:30'],
             'image' => ['required', 'image', 'max:8192'],
-            'challenge' => ['nullable', 'string', 'in:blink,turn_left,turn_right,look_up,smile'],
-            'prior_image' => ['nullable', 'image', 'max:8192'],
             'fcm_token' => ['nullable', 'string', 'max:512'],
             'platform' => ['nullable', 'in:android,ios,web'],
         ]);
 
-        $user = $this->findUserByCountryAndPhone($data['country_code'], $data['phone']);
-
-        if (! $user) {
-            RateLimiter::hit($key, $decayMinutes * 60);
-            Log::warning('face_login.user_not_found', [
-                'ip' => $request->ip(),
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'matched' => false,
-                'message' => 'Face not recognized.',
-            ], 401);
-        }
-
-        if ((int) $user->is_active === 0) {
-            return response()->json(['message' => 'Account is deactivated.'], 403);
-        }
-
-        $faceProfile = UserFaceEmbedding::query()->where('user_id', $user->id)->first();
-        if (! $faceProfile) {
-            RateLimiter::hit($key, $decayMinutes * 60);
-
-            return response()->json([
-                'success' => false,
-                'matched' => false,
-                'message' => 'No face profile found for this account.',
-            ], 404);
-        }
-
-        $storedEmbedding = $faceProfile->getEmbeddingVector();
-        if ($storedEmbedding === []) {
-            return response()->json([
-                'success' => false,
-                'matched' => false,
-                'message' => 'Face profile is invalid. Please register your face again.',
-            ], 400);
-        }
-
         try {
-            $result = $faceService->verifyEmbedding(
-                $request->file('image'),
-                $storedEmbedding,
-                $data['challenge'] ?? null,
-                $request->file('prior_image')
-            );
+            $result = $faceService->extractEmbedding($request->file('image'));
         } catch (\Throwable $e) {
-            Log::error('face_login.ai_error', [
-                'user_id' => $user->id,
+            Log::error('face_login.extract_error', [
                 'error' => $e->getMessage(),
+                'ip' => $request->ip(),
             ]);
 
             return response()->json([
@@ -147,13 +99,8 @@ class FaceController extends AuthController
             ], 503);
         }
 
-        if (! ($result['success'] ?? false)) {
+        if (! ($result['success'] ?? false) || empty($result['embedding'])) {
             RateLimiter::hit($key, $decayMinutes * 60);
-            Log::warning('face_login.failed', [
-                'user_id' => $user->id,
-                'message' => $result['message'] ?? 'verification failed',
-                'ip' => $request->ip(),
-            ]);
 
             return response()->json([
                 'success' => false,
@@ -162,44 +109,64 @@ class FaceController extends AuthController
             ], 400);
         }
 
-        $matched = (bool) ($result['matched'] ?? false);
-        $confidence = (float) ($result['confidence'] ?? $result['score'] ?? 0);
+        $probe = $result['embedding'];
+        $threshold = (float) config('face_recognition.similarity_threshold', 0.80);
+        $profiles = UserFaceEmbedding::query()
+            ->with('user')
+            ->whereHas('user', fn ($query) => $query->where('is_active', 1))
+            ->get();
 
-        if (! $matched) {
+        $bestUser = null;
+        $bestScore = 0.0;
+
+        foreach ($profiles as $profile) {
+            $storedEmbedding = $profile->getEmbeddingVector();
+            if ($storedEmbedding === []) {
+                continue;
+            }
+
+            $score = $faceService->cosineSimilarity($probe, $storedEmbedding);
+            if ($score > $bestScore) {
+                $bestScore = $score;
+                $bestUser = $profile->user;
+            }
+        }
+
+        if (! $bestUser || $bestScore < $threshold) {
             RateLimiter::hit($key, $decayMinutes * 60);
             Log::warning('face_login.not_matched', [
-                'user_id' => $user->id,
-                'confidence' => $confidence,
+                'confidence' => $bestScore,
                 'ip' => $request->ip(),
             ]);
 
             return response()->json([
                 'success' => false,
                 'matched' => false,
-                'confidence' => $confidence,
+                'message' => 'Face not recognized.',
+                'confidence' => round($bestScore, 4),
             ], 401);
         }
 
         RateLimiter::clear($key);
 
-        $user->tokens()->delete();
+        $bestUser->tokens()->delete();
 
         if (! empty($data['fcm_token'])) {
-            $user->update([
+            $bestUser->update([
                 'fcm_token' => $data['fcm_token'],
-                'platform' => $data['platform'] ?? $user->platform,
+                'platform' => $data['platform'] ?? $bestUser->platform,
                 'token_updated_at' => now(),
             ]);
         }
 
-        $token = $user->createToken('api')->plainTextToken;
+        $token = $bestUser->createToken('api')->plainTextToken;
 
         return response()->json([
             'success' => true,
             'matched' => true,
-            'confidence' => $confidence,
+            'confidence' => round($bestScore, 4),
             'token' => $token,
-            'user' => $user,
+            'user' => $bestUser,
         ]);
     }
 

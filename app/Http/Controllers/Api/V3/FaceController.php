@@ -53,6 +53,21 @@ class FaceController extends AuthController
             ], 400);
         }
 
+        $duplicate = $faceService->findDuplicateFaceOwner($best['embedding'], $user->id);
+        if ($duplicate !== null) {
+            Log::warning('face_register.duplicate_blocked', [
+                'user_id' => $user->id,
+                'existing_user_id' => $duplicate['user_id'],
+                'score' => $duplicate['score'],
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'This face is already linked to another account.',
+                'code' => 'face_already_registered',
+            ], 409);
+        }
+
         $record = UserFaceEmbedding::query()->firstOrNew(['user_id' => $user->id]);
         $record->quality_score = $best['quality_score'] ?? null;
         $record->enrolled_at = now();

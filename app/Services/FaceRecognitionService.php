@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\UserFaceEmbedding;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -140,6 +141,43 @@ class FaceRecognitionService
         }
 
         return $dot / (sqrt($normProbe) * sqrt($normReference));
+    }
+
+    /**
+     * @return array{user_id: int, score: float}|null
+     */
+    public function findDuplicateFaceOwner(array $probeEmbedding, int $excludeUserId): ?array
+    {
+        $threshold = (float) config('face_recognition.duplicate_threshold', 0.82);
+
+        $profiles = UserFaceEmbedding::query()
+            ->where('user_id', '!=', $excludeUserId)
+            ->get();
+
+        $bestUserId = null;
+        $bestScore = 0.0;
+
+        foreach ($profiles as $profile) {
+            $storedEmbedding = $profile->getEmbeddingVector();
+            if ($storedEmbedding === []) {
+                continue;
+            }
+
+            $score = $this->cosineSimilarity($probeEmbedding, $storedEmbedding);
+            if ($score > $bestScore) {
+                $bestScore = $score;
+                $bestUserId = (int) $profile->user_id;
+            }
+        }
+
+        if ($bestUserId === null || $bestScore < $threshold) {
+            return null;
+        }
+
+        return [
+            'user_id' => $bestUserId,
+            'score' => $bestScore,
+        ];
     }
 
     protected function client()

@@ -244,3 +244,12 @@ Route::prefix('v2')->group(function () use ($v2Controllers) {
     Route::post('/register/verify-otp', [$v2Controllers['auth'], 'registerVerifyOtp']);
     Route::post('/register/complete', [$v2Controllers['auth'], 'registerComplete']);
 });
+// V3-only face authentication (does not affect v1/v2).
+Route::prefix('v3')->group(function () {
+    Route::get('/face/challenge', [\App\Http\Controllers\Api\V3\FaceController::class, 'challenge']);
+    Route::post('/login-face', [\App\Http\Controllers\Api\V3\FaceController::class, 'loginFace']);
+});
+Route::prefix('v3')->middleware('auth:sanctum')->group(function () {
+    Route::post('/register-face', [\App\Http\Controllers\Api\V3\FaceController::class, 'registerFace']);
+    Route::get('/face/status', [\App\Http\Controllers\Api\V3\FaceController::class, 'status']);
+});

@@ -127,5 +127,10 @@ public function country()
         return $this->hasOne(UserLastSearch::class);
     }
 
+    public function faceEmbedding()
+    {
+        return $this->hasOne(UserFaceEmbedding::class);
+    }
+
 }
 

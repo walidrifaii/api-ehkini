@@ -8,8 +8,8 @@ return [
 
     'similarity_threshold' => (float) env('FACE_SIMILARITY_THRESHOLD', 0.80),
 
-    // Stricter than login — blocks the same face on another account.
-    'duplicate_threshold' => (float) env('FACE_DUPLICATE_THRESHOLD', 0.82),
+    // Block same face on another account — defaults to login threshold if not set.
+    'duplicate_threshold' => (float) env('FACE_DUPLICATE_THRESHOLD', env('FACE_SIMILARITY_THRESHOLD', 0.80)),
 
     'login_rate_limit' => (int) env('FACE_LOGIN_RATE_LIMIT', 5),
 

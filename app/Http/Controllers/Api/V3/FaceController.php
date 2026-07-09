@@ -53,12 +53,18 @@ class FaceController extends AuthController
             ], 400);
         }
 
-        $duplicate = $faceService->findDuplicateFaceOwner($best['embedding'], $user->id);
+        $probeEmbeddings = collect($results)
+            ->map(fn (array $result) => $result['embedding'] ?? null)
+            ->filter(fn ($embedding) => is_array($embedding) && $embedding !== [])
+            ->values()
+            ->all();
+
+        $duplicate = $faceService->findDuplicateFaceOwner($probeEmbeddings, $user->id);
         if ($duplicate !== null) {
             Log::warning('face_register.duplicate_blocked', [
                 'user_id' => $user->id,
                 'existing_user_id' => $duplicate['user_id'],
-                'score' => $duplicate['score'],
+                'score' => round($duplicate['score'], 4),
             ]);
 
             return response()->json([

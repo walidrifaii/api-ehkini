@@ -144,33 +144,67 @@ class FaceRecognitionService
     }
 
     /**
+     * @param  array<int, array<int, float|int|string>>|array<int, float|int|string>  $probeEmbeddings
      * @return array{user_id: int, score: float}|null
      */
-    public function findDuplicateFaceOwner(array $probeEmbedding, int $excludeUserId): ?array
+    public function findDuplicateFaceOwner(array $probeEmbeddings, int $excludeUserId): ?array
     {
-        $threshold = (float) config('face_recognition.duplicate_threshold', 0.82);
+        if ($probeEmbeddings === []) {
+            return null;
+        }
+
+        // Allow a single flat embedding vector.
+        if (is_numeric($probeEmbeddings[0] ?? null)) {
+            $probeEmbeddings = [$probeEmbeddings];
+        }
+
+        $threshold = (float) config(
+            'face_recognition.duplicate_threshold',
+            config('face_recognition.similarity_threshold', 0.80)
+        );
 
         $profiles = UserFaceEmbedding::query()
             ->where('user_id', '!=', $excludeUserId)
-            ->get();
+            ->get(['id', 'user_id', 'embedding']);
+
+        if ($profiles->isEmpty()) {
+            return null;
+        }
 
         $bestUserId = null;
         $bestScore = 0.0;
 
-        foreach ($profiles as $profile) {
-            $storedEmbedding = $profile->getEmbeddingVector();
-            if ($storedEmbedding === []) {
+        foreach ($probeEmbeddings as $probeEmbedding) {
+            if (! is_array($probeEmbedding) || $probeEmbedding === []) {
                 continue;
             }
 
-            $score = $this->cosineSimilarity($probeEmbedding, $storedEmbedding);
-            if ($score > $bestScore) {
-                $bestScore = $score;
-                $bestUserId = (int) $profile->user_id;
+            foreach ($profiles as $profile) {
+                $storedEmbedding = $profile->getEmbeddingVector();
+                if ($storedEmbedding === []) {
+                    Log::warning('face_register.empty_stored_embedding', [
+                        'profile_id' => $profile->id,
+                        'user_id' => $profile->user_id,
+                    ]);
+                    continue;
+                }
+
+                $score = $this->cosineSimilarity($probeEmbedding, $storedEmbedding);
+                if ($score > $bestScore) {
+                    $bestScore = $score;
+                    $bestUserId = (int) $profile->user_id;
+                }
             }
         }
 
         if ($bestUserId === null || $bestScore < $threshold) {
+            Log::info('face_register.duplicate_check_passed', [
+                'exclude_user_id' => $excludeUserId,
+                'best_score' => round($bestScore, 4),
+                'threshold' => $threshold,
+                'profiles_checked' => $profiles->count(),
+            ]);
+
             return null;
         }
 

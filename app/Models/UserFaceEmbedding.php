@@ -36,16 +36,21 @@ class UserFaceEmbedding extends Model
 
     public function getEmbeddingVector(): array
     {
-        $raw = $this->attributes['embedding'] ?? null;
+        $raw = $this->getRawOriginal('embedding');
         if (! is_string($raw) || $raw === '') {
             return [];
         }
 
-        $decoded = json_decode(Crypt::decryptString($raw), true);
+        try {
+            $decoded = json_decode(Crypt::decryptString($raw), true);
+        } catch (\Throwable) {
+            return [];
+        }
+
         if (! is_array($decoded)) {
             return [];
         }
 
-        return array_map('floatval', $decoded);
+        return array_map('floatval', array_values($decoded));
     }
 }

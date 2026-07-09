@@ -53,13 +53,9 @@ class FaceController extends AuthController
             ], 400);
         }
 
-        $record = UserFaceEmbedding::query()->updateOrCreate(
-            ['user_id' => $user->id],
-            [
-                'quality_score' => $best['quality_score'] ?? null,
-                'enrolled_at' => now(),
-            ]
-        );
+        $record = UserFaceEmbedding::query()->firstOrNew(['user_id' => $user->id]);
+        $record->quality_score = $best['quality_score'] ?? null;
+        $record->enrolled_at = now();
         $record->setEmbeddingVector($best['embedding']);
         $record->save();
 

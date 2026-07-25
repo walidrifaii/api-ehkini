@@ -54,7 +54,11 @@ return [
     'channels' => [
         'stack' => [
             'driver' => 'stack',
-            'channels' => ['single'],
+            // Include stderr so EasyPanel/Docker "Logs" show Laravel errors (not only artisan access lines).
+            'channels' => array_values(array_filter(array_map(
+                'trim',
+                explode(',', (string) env('LOG_STACK', 'single,stderr'))
+            ))),
             'ignore_exceptions' => false,
         ],
 

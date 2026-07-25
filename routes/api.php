@@ -246,6 +246,7 @@ Route::prefix('v2')->group(function () use ($v2Controllers) {
     Route::post('/register/complete', [$v2Controllers['auth'], 'registerComplete']);
 
     // Optional email registration path (alternative to phone above).
+    Route::post('/check-email', [$v2Controllers['auth'], 'checkEmail']);
     Route::post('/register-email/send-otp', [$v2Controllers['auth'], 'registerEmailSendOtp']);
     Route::post('/register-email/verify-otp', [$v2Controllers['auth'], 'registerEmailVerifyOtp']);
     Route::post('/register-email/complete', [$v2Controllers['auth'], 'registerEmailComplete']);

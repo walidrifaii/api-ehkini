@@ -63,7 +63,58 @@ class AuthController extends \App\Http\Controllers\Api\V1\AuthController
             'active' => true,
             'age_ok' => true,
             'user_id' => $user->id,
-            'message' => 'Phone number exists.',
+            'message' => 'Phone already exists.',
+        ]);
+    }
+
+    /**
+     * POST /api/v2/check-email
+     * Pre-check for email registration step 1 (mirrors check-phone).
+     */
+    public function checkEmail(Request $request)
+    {
+        $minAgeDate = now()->subYears(18)->format('Y-m-d');
+
+        $data = $request->validate([
+            'email' => ['required', 'string', 'email', 'max:255'],
+            'date_of_birth' => ['required', 'date', 'before_or_equal:' . $minAgeDate],
+        ], $this->dateOfBirthValidationMessages(required: true));
+
+        $email = strtolower(trim($data['email']));
+        $user = User::where('email', $email)->first();
+
+        if (! $user) {
+            return response()->json([
+                'exists' => false,
+                'age_ok' => true,
+                'message' => 'Email not registered.',
+            ]);
+        }
+
+        if ((int) $user->is_active === 0) {
+            return response()->json([
+                'exists' => true,
+                'active' => false,
+                'age_ok' => true,
+                'message' => 'Email not registered.',
+            ]);
+        }
+
+        if ($user->date_of_birth && (int) $user->age < 18) {
+            return response()->json([
+                'exists' => true,
+                'active' => true,
+                'age_ok' => false,
+                'message' => 'You must be at least 18 years old to use this service.',
+            ]);
+        }
+
+        return response()->json([
+            'exists' => true,
+            'active' => true,
+            'age_ok' => true,
+            'user_id' => $user->id,
+            'message' => 'Email already exists.',
         ]);
     }
 

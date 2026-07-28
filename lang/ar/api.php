@@ -25,6 +25,8 @@ return [
     'phone_number_exists' => 'رقم الهاتف موجود مسبقاً.',
     'invalid_credentials' => 'بيانات الدخول غير صحيحة.',
     'account_deleted' => 'هذا الحساب محذوف.',
+    'account_permanently_deleted' => 'تم حذف الحساب نهائياً.',
+    'account_restored_successfully' => 'تم استعادة الحساب بنجاح.',
     'login_successful' => 'تم تسجيل الدخول بنجاح.',
     'account_deactivated' => 'هذا الحساب معطل.',
     'update_profile_failed' => 'فشل تحديث الملف الشخصي.',

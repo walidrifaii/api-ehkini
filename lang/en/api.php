@@ -29,6 +29,8 @@ return [
     'phone_number_exists' => 'Phone number exists.',
     'invalid_credentials' => 'Invalid credentials.',
     'account_deleted' => 'This account is Deleted.',
+    'account_permanently_deleted' => 'Account permanently deleted.',
+    'account_restored_successfully' => 'Account restored successfully.',
     'login_successful' => 'Login successful.',
     'account_deactivated' => 'This account is deactivated.',
     'update_profile_failed' => 'Update profile failed.',

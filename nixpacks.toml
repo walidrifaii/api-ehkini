@@ -12,6 +12,7 @@ nixpkgsArchive = "e24b4c09e963677b1beea49d411cd315a024ad3a"
 
 [phases.install]
 cmds = [
+  "mkdir -p /etc/php82/conf.d && printf '%s\\n' 'upload_max_filesize=64M' 'post_max_size=64M' 'memory_limit=256M' 'max_execution_time=180' > /etc/php82/conf.d/99-uploads.ini || true",
   "mkdir -p /var/log/nginx /var/cache/nginx",
   "composer install --no-dev --optimize-autoloader --no-interaction",
 ]

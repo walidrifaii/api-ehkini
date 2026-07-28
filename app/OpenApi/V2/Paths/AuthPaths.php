@@ -195,6 +195,24 @@ namespace App\OpenApi\V2\Paths;
  * )
  *
  * @OA\Post(
+ *     path="/api/v2/account/restore",
+ *     tags={"Auth"},
+ *     summary="Restore soft-deleted account and log in",
+ *     description="Call after login returns code ACCOUNT_DELETED. Same body as login or login-email.",
+ *     @OA\Response(response=200, description="Account restored and logged in"),
+ *     @OA\Response(response=401, description="Invalid credentials")
+ * )
+ *
+ * @OA\Post(
+ *     path="/api/v2/account/permanently-delete",
+ *     tags={"Auth"},
+ *     summary="Permanently delete a soft-deleted account",
+ *     description="Call when user declines restore after login returns ACCOUNT_DELETED. Same body as login or login-email.",
+ *     @OA\Response(response=200, description="Account permanently deleted"),
+ *     @OA\Response(response=401, description="Invalid credentials")
+ * )
+ *
+ * @OA\Post(
  *     path="/api/v2/profile/update",
  *     tags={"Auth"},
  *     summary="Update profile",

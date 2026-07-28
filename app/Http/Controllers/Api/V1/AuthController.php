@@ -9,6 +9,7 @@ use App\Models\GiftTransaction;
 use App\Models\User;
 use App\Services\FcmService;
 use App\Services\ImageCompressionService;
+use App\Services\UserAccountPurgeService;
 use App\Services\UserLocationService;
 use App\Support\MediaStorage;
 use App\Services\MessageCentralOtpService;
@@ -235,51 +236,10 @@ class AuthController extends Controller
         }
 
         if ((int) $user->is_active === 0) {
-            return response()->json(['message' => 'This account is Deleted.'], 403);
+            return $this->deletedAccountRestorableResponse();
         }
 
-        $oldFcmToken = $user->fcm_token;
-
-        // Multiple devices can stay signed in concurrently — a new login no
-        // longer revokes other devices' tokens (see notifyOtherDeviceOfNewLogin
-        // below for the "someone logged in elsewhere" alert instead).
-        $update = [];
-
-        if (!empty($data['fcm_token'])) {
-            $update['fcm_token'] = $data['fcm_token'];
-            $update['platform'] = $data['platform'] ?? $user->platform;
-            $update['token_updated_at'] = now();
-        }
-
-        if (array_key_exists('location', $data) && $data['location'] !== null) {
-            $update['location'] = $data['location'];
-        }
-
-        if (array_key_exists('latitude', $data) && $data['latitude'] !== null) {
-            $update['latitude'] = $data['latitude'];
-        }
-
-        if (array_key_exists('longitude', $data) && $data['longitude'] !== null) {
-            $update['longitude'] = $data['longitude'];
-        }
-
-        if (isset($update['latitude'], $update['longitude'])) {
-            $update['location_updated_at'] = now();
-        }
-
-        if (!empty($update)) {
-            $user->update($update);
-        }
-
-        $token = $user->createToken('api')->plainTextToken;
-
-        $this->notifyOtherDeviceOfNewLogin($user, $oldFcmToken, $data['fcm_token'] ?? null);
-
-        return response()->json([
-            'message' => 'Login successful.',
-            'token'   => $token,
-            'user'    => $user,
-        ]);
+        return $this->completeLogin($user, $data);
     }
 
     /**
@@ -306,9 +266,82 @@ class AuthController extends Controller
         }
 
         if ((int) $user->is_active === 0) {
-            return response()->json(['message' => 'This account is Deleted.'], 403);
+            return $this->deletedAccountRestorableResponse();
         }
 
+        return $this->completeLogin($user, $data);
+    }
+
+    /**
+     * POST /api/v1/account/restore
+     * Restore a soft-deleted account (is_active=0) and log the user in.
+     * Accepts the same credentials as phone or email login.
+     */
+    public function restoreAccount(Request $request)
+    {
+        $user = $this->findInactiveUserFromCredentials($request);
+
+        if (! $user) {
+            return response()->json(['message' => api_trans('invalid_credentials')], 401);
+        }
+
+        $user->update(['is_active' => 1]);
+
+        return $this->completeLogin($user->fresh(), $request->all());
+    }
+
+    /**
+     * POST /api/v1/account/permanently-delete
+     * After soft-delete, user declines restore → hard-delete from DB.
+     * Accepts the same credentials as phone or email login.
+     */
+    public function permanentlyDeleteAccount(Request $request, UserAccountPurgeService $purge)
+    {
+        $user = $this->findInactiveUserFromCredentials($request);
+
+        if (! $user) {
+            return response()->json(['message' => api_trans('invalid_credentials')], 401);
+        }
+
+        try {
+            $purge->purge($user);
+        } catch (\Throwable $e) {
+            Log::error('account.permanently_delete_failed', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => api_trans('failed_to_delete_account'),
+                'error' => $e->getMessage(),
+            ], 422);
+        }
+
+        return response()->json([
+            'message' => api_trans('account_permanently_deleted'),
+        ]);
+    }
+
+    /**
+     * Login succeeded credentials but account was soft-deleted.
+     * Client should offer restore vs permanent delete.
+     */
+    protected function deletedAccountRestorableResponse()
+    {
+        return response()->json([
+            'message' => api_trans('account_deleted'),
+            'code' => 'ACCOUNT_DELETED',
+            'can_restore' => true,
+        ], 403);
+    }
+
+    /**
+     * Issue token + optional FCM/location update after a successful auth check.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    protected function completeLogin(User $user, array $data)
+    {
         $oldFcmToken = $user->fcm_token;
 
         // Multiple devices can stay signed in concurrently — a new login no
@@ -316,7 +349,7 @@ class AuthController extends Controller
         // below for the "someone logged in elsewhere" alert instead).
         $update = [];
 
-        if (!empty($data['fcm_token'])) {
+        if (! empty($data['fcm_token'])) {
             $update['fcm_token'] = $data['fcm_token'];
             $update['platform'] = $data['platform'] ?? $user->platform;
             $update['token_updated_at'] = now();
@@ -338,7 +371,7 @@ class AuthController extends Controller
             $update['location_updated_at'] = now();
         }
 
-        if (!empty($update)) {
+        if (! empty($update)) {
             $user->update($update);
         }
 
@@ -347,10 +380,66 @@ class AuthController extends Controller
         $this->notifyOtherDeviceOfNewLogin($user, $oldFcmToken, $data['fcm_token'] ?? null);
 
         return response()->json([
-            'message' => 'Login successful.',
-            'token'   => $token,
-            'user'    => $user,
+            'message' => api_trans('login_successful'),
+            'token' => $token,
+            'user' => $user->fresh(),
         ]);
+    }
+
+    /**
+     * Resolve an inactive user from phone or email login credentials.
+     */
+    protected function findInactiveUserFromCredentials(Request $request): ?User
+    {
+        $hasEmail = $request->filled('email');
+        $hasPhone = $request->filled('phone') && $request->filled('country_code');
+
+        if ($hasEmail) {
+            $data = $request->validate([
+                'email' => ['required', 'string', 'email', 'max:255'],
+                'password' => ['required', 'string'],
+                'fcm_token' => ['nullable', 'string', 'max:512'],
+                'platform' => ['nullable', 'in:android,ios,web'],
+                'location' => ['nullable', 'string', 'max:255'],
+            ] + $this->coordinatesRules());
+
+            $user = User::where('email', strtolower(trim($data['email'])))->first();
+        } elseif ($hasPhone) {
+            $data = $request->validate([
+                'country_code' => ['required', 'string', 'max:6'],
+                'phone' => ['required', 'string', 'max:30'],
+                'password' => ['required', 'string'],
+                'fcm_token' => ['nullable', 'string', 'max:512'],
+                'platform' => ['nullable', 'in:android,ios,web'],
+                'location' => ['nullable', 'string', 'max:255'],
+            ] + $this->coordinatesRules());
+
+            $data['country_code'] = $this->normalizeCountryCode($data['country_code']);
+            $data['phone'] = $this->normalizePhone($data['phone']);
+
+            $user = User::where('country_code', $data['country_code'])
+                ->where('phone', $data['phone'])
+                ->first();
+        } else {
+            $request->validate([
+                'password' => ['required', 'string'],
+                'email' => ['required_without:phone', 'nullable', 'email'],
+                'phone' => ['required_without:email', 'nullable', 'string'],
+                'country_code' => ['required_with:phone', 'nullable', 'string'],
+            ]);
+
+            return null;
+        }
+
+        if (! $user || ! Hash::check($request->input('password'), $user->password)) {
+            return null;
+        }
+
+        if ((int) $user->is_active !== 0) {
+            return null;
+        }
+
+        return $user;
     }
 
     /**

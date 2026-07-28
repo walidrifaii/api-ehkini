@@ -4,6 +4,7 @@ namespace App\Exceptions;
 
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
+use Illuminate\Http\Exceptions\PostTooLargeException;
 use Illuminate\Validation\ValidationException;
 use Throwable;
 
@@ -43,6 +44,15 @@ class Handler extends ExceptionHandler
                     'message' => api_translate_message('The given data was invalid.'),
                     'errors' => $e->errors(),
                 ], $e->status);
+            }
+        });
+
+        $this->renderable(function (PostTooLargeException $e, $request) {
+            if ($request->is('api/*') || $request->expectsJson()) {
+                return response()->json([
+                    'message' => 'File is too large. Maximum upload size is 50MB.',
+                    'error' => 'post_too_large',
+                ], 413);
             }
         });
     }

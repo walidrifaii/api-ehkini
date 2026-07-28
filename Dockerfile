@@ -19,6 +19,8 @@ RUN apk add --no-cache \
         opcache \
     && apk del --no-cache icu-dev
 
+COPY docker/uploads.ini /usr/local/etc/php/conf.d/uploads.ini
+
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /app

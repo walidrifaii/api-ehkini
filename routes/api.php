@@ -91,6 +91,8 @@ $versionedApiRoutes = function (array $controllers) {
     
     Route::post('/login', [$controllers['auth'], 'login']);
     Route::post('/login-email', [$controllers['auth'], 'loginEmail']);
+    Route::post('/account/restore', [$controllers['auth'], 'restoreAccount']);
+    Route::post('/account/permanently-delete', [$controllers['auth'], 'permanentlyDeleteAccount']);
     Route::get('/pages/{slug}', [$controllers['page'], 'show']);
     Route::post('/check-phone', [$controllers['auth'], 'checkPhone']);
 

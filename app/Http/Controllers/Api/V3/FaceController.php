@@ -14,7 +14,7 @@ class FaceController extends AuthController
     public function registerFace(Request $request, FaceRecognitionService $faceService)
     {
         $data = $request->validate([
-            'images' => ['required', 'array', 'min:1', 'max:3'],
+            'images' => ['required', 'array', 'min:1', 'max:5'],
             'images.*' => ['required', 'image', 'max:8192'],
             'challenge' => ['nullable', 'string', 'in:blink,turn_left,turn_right,look_up,smile'],
             'prior_image' => ['nullable', 'image', 'max:8192'],
@@ -38,13 +38,21 @@ class FaceController extends AuthController
                     'user_id' => $user->id,
                     'error' => $e->getMessage(),
                 ]);
+                $results[] = [
+                    'success' => false,
+                    'message' => $e->getMessage() ?: 'No valid face detected',
+                    'issues' => [],
+                ];
             }
         }
 
         $best = $faceService->pickBestRegistrationResult($results);
         if (! $best || empty($best['embedding'])) {
-            $message = $results[0]['message'] ?? 'No valid face detected';
-            $issues = $results[0]['issues'] ?? [];
+            $failed = collect($results)->first(
+                fn ($result) => ! empty($result['message'] ?? null) || ! empty($result['issues'] ?? null)
+            ) ?? [];
+            $message = $failed['message'] ?? 'No valid face detected';
+            $issues = $failed['issues'] ?? [];
 
             return response()->json([
                 'success' => false,

@@ -93,6 +93,10 @@ class FaceRecognitionService
             return null;
         }
 
+        $averaged = $this->averageEmbeddings(
+            array_map(fn (array $item) => $item['embedding'], $valid)
+        );
+
         usort($valid, function (array $a, array $b) {
             $scoreA = (float) ($a['quality_score'] ?? 0);
             $scoreB = (float) ($b['quality_score'] ?? 0);
@@ -103,7 +107,74 @@ class FaceRecognitionService
             return $scoreB <=> $scoreA;
         });
 
-        return $valid[0];
+        $best = $valid[0];
+        $best['embedding'] = $averaged;
+        $best['quality_score'] = collect($valid)
+            ->avg(fn (array $item) => (float) ($item['quality_score'] ?? 0));
+
+        return $best;
+    }
+
+    /**
+     * Average L2-normalized pose embeddings so login works from left/right/top/bottom.
+     *
+     * @param  array<int, array<int, float|int|string>>  $embeddings
+     * @return array<int, float>
+     */
+    public function averageEmbeddings(array $embeddings): array
+    {
+        $vectors = [];
+        $dim = null;
+
+        foreach ($embeddings as $embedding) {
+            if (! is_array($embedding) || $embedding === []) {
+                continue;
+            }
+
+            $values = array_map('floatval', array_values($embedding));
+            if ($dim === null) {
+                $dim = count($values);
+            }
+            if (count($values) !== $dim) {
+                continue;
+            }
+
+            $norm = 0.0;
+            foreach ($values as $value) {
+                $norm += $value * $value;
+            }
+            $norm = sqrt($norm);
+            if ($norm <= 0.0) {
+                continue;
+            }
+
+            $vectors[] = array_map(fn (float $value) => $value / $norm, $values);
+        }
+
+        if ($vectors === [] || $dim === null) {
+            return [];
+        }
+
+        $sum = array_fill(0, $dim, 0.0);
+        foreach ($vectors as $vector) {
+            for ($i = 0; $i < $dim; $i++) {
+                $sum[$i] += $vector[$i];
+            }
+        }
+
+        $count = count($vectors);
+        $avg = array_map(fn (float $value) => $value / $count, $sum);
+
+        $norm = 0.0;
+        foreach ($avg as $value) {
+            $norm += $value * $value;
+        }
+        $norm = sqrt($norm);
+        if ($norm <= 0.0) {
+            return $avg;
+        }
+
+        return array_map(fn (float $value) => $value / $norm, $avg);
     }
 
     public function extractEmbedding(UploadedFile $image): array

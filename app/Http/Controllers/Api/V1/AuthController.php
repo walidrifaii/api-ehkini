@@ -1064,23 +1064,66 @@ class AuthController extends Controller
             'country_code' => ['required', 'string', 'max:6'],
             'phone'        => ['required', 'string', 'max:30'],
             'channel'      => ['nullable', 'string', 'in:whatsapp,whatsapp_node,sms'],
+            'confirm_restore' => ['nullable', 'boolean'],
         ]);
 
         $cc = $this->normalizeCountryCode($data['country_code']);
         $ph = $this->normalizeMobileNumber($cc, $data['phone']);
-        $phoneE164 = $cc . $ph;
+        $confirmRestore = filter_var($data['confirm_restore'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
         $user = $this->findUserByCountryAndPhone($cc, $data['phone']);
 
-        if (! $user || (int) $user->is_active === 0) {
+        if (! $user) {
             Log::info('forgot_password.send_otp_skipped', [
-                'reason' => $user ? 'inactive_user' : 'user_not_found',
+                'reason' => 'user_not_found',
                 'country_code' => $cc,
                 'phone_last4' => substr($ph, -4),
                 'channel' => $data['channel'] ?? 'auto',
             ]);
 
             return response()->json(['message' => 'If the phone exists, we sent a code.'], 200);
+        }
+
+        if ((int) $user->is_active === 0) {
+            if ($this->isPastDeletionGracePeriod($user)) {
+                try {
+                    app(UserAccountPurgeService::class)->purge($user);
+                } catch (\Throwable $e) {
+                    Log::error('forgot_password.expired_purge_failed', [
+                        'user_id' => $user->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+
+                return response()->json([
+                    'message' => api_trans('account_deletion_grace_expired'),
+                    'code' => 'ACCOUNT_DELETED_EXPIRED',
+                    'can_restore' => false,
+                    'success' => false,
+                ], 410);
+            }
+
+            if (! $confirmRestore) {
+                return response()->json([
+                    'message' => api_trans('account_deleted'),
+                    'code' => 'ACCOUNT_DELETED',
+                    'can_restore' => true,
+                    'grace_days' => 30,
+                    'days_remaining' => $this->deletionGraceDaysRemaining($user),
+                    'success' => false,
+                ], 403);
+            }
+
+            $user->update([
+                'is_active' => 1,
+                'deactivated_at' => null,
+            ]);
+            $user->refresh();
+
+            Log::info('forgot_password.account_restored_before_otp', [
+                'user_id' => $user->id,
+                'phone_last4' => substr($ph, -4),
+            ]);
         }
 
         try {

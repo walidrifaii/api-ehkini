@@ -8,6 +8,11 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // Live DB may already have this table from a prior manual/out-of-band create.
+        if (Schema::hasTable('user_face_embeddings')) {
+            return;
+        }
+
         Schema::create('user_face_embeddings', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->unique()->constrained()->cascadeOnDelete();

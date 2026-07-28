@@ -289,7 +289,7 @@ class FaceRecognitionService
 
     protected function client()
     {
-        $request = Http::timeout(60)->acceptJson();
+        $request = Http::timeout(120)->acceptJson();
         $apiKey = config('face_recognition.api_key');
         if ($apiKey) {
             $request = $request->withHeaders(['X-API-Key' => $apiKey]);

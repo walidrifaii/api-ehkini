@@ -47,9 +47,20 @@ class FaceController extends AuthController
         }
 
         $best = $faceService->pickBestRegistrationResult($results);
+        $successCount = collect($results)
+            ->filter(fn ($result) => ! empty($result['embedding'] ?? null))
+            ->count();
+
+        Log::info('face_register.batch_done', [
+            'user_id' => $user->id,
+            'total' => count($results),
+            'success' => $successCount,
+        ]);
+
         if (! $best || empty($best['embedding'])) {
             $failed = collect($results)->first(
-                fn ($result) => ! empty($result['message'] ?? null) || ! empty($result['issues'] ?? null)
+                fn ($result) => empty($result['embedding'] ?? null)
+                    && (! empty($result['message'] ?? null) || ! empty($result['issues'] ?? null))
             ) ?? [];
             $message = $failed['message'] ?? 'No valid face detected';
             $issues = $failed['issues'] ?? [];
@@ -88,11 +99,12 @@ class FaceController extends AuthController
         $record->setEmbeddingVector($best['embedding']);
         $record->save();
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Face registered successfully.',
-            'quality_score' => $best['quality_score'] ?? null,
-        ]);
+            return response()->json([
+                'success' => true,
+                'message' => 'Face registered successfully.',
+                'quality_score' => $best['quality_score'] ?? null,
+                'frames_used' => $successCount,
+            ]);
     }
 
     public function loginFace(Request $request, FaceRecognitionService $faceService)

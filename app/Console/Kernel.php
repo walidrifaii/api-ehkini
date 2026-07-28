@@ -14,6 +14,7 @@ class Kernel extends ConsoleKernel
     {
         // $schedule->command('inspire')->hourly();
         $schedule->command('stories:expire')->everyMinute();
+        $schedule->command('accounts:purge-inactive --days=30')->daily();
     }
 
     /**

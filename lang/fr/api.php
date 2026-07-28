@@ -30,6 +30,7 @@ return [
     'account_deleted' => 'Ce compte est supprimé.',
     'account_permanently_deleted' => 'Compte définitivement supprimé.',
     'account_restored_successfully' => 'Compte restauré avec succès.',
+    'account_deletion_grace_expired' => 'Ce compte a été définitivement supprimé après 30 jours d\'inactivité.',
     'login_successful' => 'Connexion réussie.',
     'account_deactivated' => 'Ce compte est désactivé.',
     'update_profile_failed' => 'Échec de la mise à jour du profil.',

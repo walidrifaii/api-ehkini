@@ -198,16 +198,17 @@ namespace App\OpenApi\V2\Paths;
  *     path="/api/v2/account/restore",
  *     tags={"Auth"},
  *     summary="Restore soft-deleted account and log in",
- *     description="Call after login returns code ACCOUNT_DELETED. Same body as login or login-email.",
+ *     description="Call after login returns code ACCOUNT_DELETED (within 30-day grace). Same body as login or login-email. Soft-deleted accounts are auto-purged after 30 days.",
  *     @OA\Response(response=200, description="Account restored and logged in"),
- *     @OA\Response(response=401, description="Invalid credentials")
+ *     @OA\Response(response=401, description="Invalid credentials"),
+ *     @OA\Response(response=410, description="Grace period expired; account purged")
  * )
  *
  * @OA\Post(
  *     path="/api/v2/account/permanently-delete",
  *     tags={"Auth"},
- *     summary="Permanently delete a soft-deleted account",
- *     description="Call when user declines restore after login returns ACCOUNT_DELETED. Same body as login or login-email.",
+ *     summary="Permanently delete a soft-deleted account (manual)",
+ *     description="Optional manual hard-delete. The app restore dialog no longer calls this; inactive accounts are purged automatically after 30 days.",
  *     @OA\Response(response=200, description="Account permanently deleted"),
  *     @OA\Response(response=401, description="Invalid credentials")
  * )

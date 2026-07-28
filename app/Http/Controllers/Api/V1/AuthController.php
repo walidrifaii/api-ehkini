@@ -236,7 +236,7 @@ class AuthController extends Controller
         }
 
         if ((int) $user->is_active === 0) {
-            return $this->deletedAccountRestorableResponse();
+            return $this->handleInactiveLoginAttempt($user);
         }
 
         return $this->completeLogin($user, $data);
@@ -266,7 +266,7 @@ class AuthController extends Controller
         }
 
         if ((int) $user->is_active === 0) {
-            return $this->deletedAccountRestorableResponse();
+            return $this->handleInactiveLoginAttempt($user);
         }
 
         return $this->completeLogin($user, $data);
@@ -285,15 +285,32 @@ class AuthController extends Controller
             return response()->json(['message' => api_trans('invalid_credentials')], 401);
         }
 
-        $user->update(['is_active' => 1]);
+        if ($this->isPastDeletionGracePeriod($user)) {
+            try {
+                app(UserAccountPurgeService::class)->purge($user);
+            } catch (\Throwable $e) {
+                Log::error('account.restore_expired_purge_failed', [
+                    'user_id' => $user->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
+            return response()->json([
+                'message' => api_trans('account_deletion_grace_expired'),
+            ], 410);
+        }
+
+        $user->update([
+            'is_active' => 1,
+            'deactivated_at' => null,
+        ]);
 
         return $this->completeLogin($user->fresh(), $request->all());
     }
 
     /**
      * POST /api/v1/account/permanently-delete
-     * After soft-delete, user declines restore → hard-delete from DB.
-     * Accepts the same credentials as phone or email login.
+     * Kept for admin/manual use. App restore dialog no longer calls this.
      */
     public function permanentlyDeleteAccount(Request $request, UserAccountPurgeService $purge)
     {
@@ -323,16 +340,77 @@ class AuthController extends Controller
     }
 
     /**
-     * Login succeeded credentials but account was soft-deleted.
-     * Client should offer restore vs permanent delete.
+     * Soft-deleted account login: offer restore within 30 days, else purge.
      */
-    protected function deletedAccountRestorableResponse()
+    protected function handleInactiveLoginAttempt(User $user)
     {
-        return response()->json([
+        if ($this->isPastDeletionGracePeriod($user)) {
+            try {
+                app(UserAccountPurgeService::class)->purge($user);
+            } catch (\Throwable $e) {
+                Log::error('account.login_expired_purge_failed', [
+                    'user_id' => $user->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
+            return response()->json([
+                'message' => api_trans('account_deletion_grace_expired'),
+                'code' => 'ACCOUNT_DELETED_EXPIRED',
+                'can_restore' => false,
+            ], 410);
+        }
+
+        return $this->deletedAccountRestorableResponse($user);
+    }
+
+    /**
+     * Soft-deleted accounts can be restored for 30 days after deactivation.
+     */
+    protected function isPastDeletionGracePeriod(User $user): bool
+    {
+        $deactivatedAt = $user->deactivated_at ?? $user->updated_at;
+
+        if (! $deactivatedAt) {
+            return false;
+        }
+
+        return $deactivatedAt->lte(now()->subDays(30));
+    }
+
+    protected function deletionGraceDaysRemaining(User $user): int
+    {
+        $deactivatedAt = $user->deactivated_at ?? $user->updated_at;
+        if (! $deactivatedAt) {
+            return 30;
+        }
+
+        $expiresAt = $deactivatedAt->copy()->addDays(30);
+        if (now()->gte($expiresAt)) {
+            return 0;
+        }
+
+        return max(1, (int) now()->diffInDays($expiresAt));
+    }
+
+    /**
+     * Login succeeded credentials but account was soft-deleted.
+     * Client should offer restore (auto hard-delete after 30 days if never restored).
+     */
+    protected function deletedAccountRestorableResponse(?User $user = null)
+    {
+        $payload = [
             'message' => api_trans('account_deleted'),
             'code' => 'ACCOUNT_DELETED',
             'can_restore' => true,
-        ], 403);
+            'grace_days' => 30,
+        ];
+
+        if ($user) {
+            $payload['days_remaining'] = $this->deletionGraceDaysRemaining($user);
+        }
+
+        return response()->json($payload, 403);
     }
 
     /**
@@ -928,6 +1006,7 @@ class AuthController extends Controller
 
             $user->update([
                 'is_active' => 0,
+                'deactivated_at' => now(),
                 'fcm_token' => null,
                 'platform'  => null,
                 'token_updated_at' => null,

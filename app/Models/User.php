@@ -43,6 +43,7 @@ class User extends Authenticatable
         'platform',
         'token_updated_at',
         'is_active',
+        'deactivated_at',
     ];
 
     /**
@@ -63,6 +64,7 @@ class User extends Authenticatable
         'location_updated_at' => 'datetime',
         'location_sharing_enabled' => 'boolean',
         'is_active'        => 'boolean', // ✅ important
+        'deactivated_at'   => 'datetime',
         'country_id'       => 'integer',
         'latitude'         => 'float',
         'longitude'        => 'float',

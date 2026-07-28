@@ -31,6 +31,7 @@ return [
     'account_deleted' => 'This account is Deleted.',
     'account_permanently_deleted' => 'Account permanently deleted.',
     'account_restored_successfully' => 'Account restored successfully.',
+    'account_deletion_grace_expired' => 'This account was permanently deleted after 30 days of inactivity.',
     'login_successful' => 'Login successful.',
     'account_deactivated' => 'This account is deactivated.',
     'update_profile_failed' => 'Update profile failed.',

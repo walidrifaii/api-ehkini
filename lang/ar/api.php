@@ -27,6 +27,7 @@ return [
     'account_deleted' => 'هذا الحساب محذوف.',
     'account_permanently_deleted' => 'تم حذف الحساب نهائياً.',
     'account_restored_successfully' => 'تم استعادة الحساب بنجاح.',
+    'account_deletion_grace_expired' => 'تم حذف هذا الحساب نهائياً بعد 30 يوماً من عدم النشاط.',
     'login_successful' => 'تم تسجيل الدخول بنجاح.',
     'account_deactivated' => 'هذا الحساب معطل.',
     'update_profile_failed' => 'فشل تحديث الملف الشخصي.',

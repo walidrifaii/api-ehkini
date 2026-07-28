@@ -11,7 +11,7 @@ return [
     // Block same face on another account — defaults to login threshold if not set.
     'duplicate_threshold' => (float) env('FACE_DUPLICATE_THRESHOLD', env('FACE_SIMILARITY_THRESHOLD', 0.80)),
 
-    'login_rate_limit' => (int) env('FACE_LOGIN_RATE_LIMIT', 5),
+    'login_rate_limit' => (int) env('FACE_LOGIN_RATE_LIMIT', 20),
 
     'login_rate_decay_minutes' => (int) env('FACE_LOGIN_RATE_DECAY_MINUTES', 1),
 

@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Services\UserAccountPurgeService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class PurgeInactiveAccounts extends Command
 {
@@ -17,19 +18,23 @@ class PurgeInactiveAccounts extends Command
     {
         $days = max(1, (int) $this->option('days'));
         $cutoff = now()->subDays($days);
+        $hasDeactivatedAt = Schema::hasColumn('users', 'deactivated_at');
 
-        $users = User::query()
-            ->where('is_active', 0)
-            ->where(function ($q) use ($cutoff) {
+        $query = User::query()->where('is_active', 0);
+
+        if ($hasDeactivatedAt) {
+            $query->where(function ($q) use ($cutoff) {
                 $q->where('deactivated_at', '<=', $cutoff)
                     ->orWhere(function ($q2) use ($cutoff) {
-                        // Legacy rows without deactivated_at
                         $q2->whereNull('deactivated_at')
                             ->where('updated_at', '<=', $cutoff);
                     });
-            })
-            ->orderBy('id')
-            ->get();
+            });
+        } else {
+            $query->where('updated_at', '<=', $cutoff);
+        }
+
+        $users = $query->orderBy('id')->get();
 
         $deleted = 0;
         $failed = 0;

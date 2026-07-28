@@ -20,6 +20,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
@@ -300,10 +301,9 @@ class AuthController extends Controller
             ], 410);
         }
 
-        $user->update([
+        $user->update($this->withDeactivatedAt([
             'is_active' => 1,
-            'deactivated_at' => null,
-        ]);
+        ], null));
 
         return $this->completeLogin($user->fresh(), $request->all());
     }
@@ -369,7 +369,7 @@ class AuthController extends Controller
      */
     protected function isPastDeletionGracePeriod(User $user): bool
     {
-        $deactivatedAt = $user->deactivated_at ?? $user->updated_at;
+        $deactivatedAt = $this->deactivatedAtFor($user);
 
         if (! $deactivatedAt) {
             return false;
@@ -380,7 +380,7 @@ class AuthController extends Controller
 
     protected function deletionGraceDaysRemaining(User $user): int
     {
-        $deactivatedAt = $user->deactivated_at ?? $user->updated_at;
+        $deactivatedAt = $this->deactivatedAtFor($user);
         if (! $deactivatedAt) {
             return 30;
         }
@@ -391,6 +391,44 @@ class AuthController extends Controller
         }
 
         return max(1, (int) now()->diffInDays($expiresAt));
+    }
+
+    /**
+     * Prefer deactivated_at when the column exists; otherwise fall back to updated_at.
+     */
+    protected function deactivatedAtFor(User $user): ?\Illuminate\Support\Carbon
+    {
+        if ($this->usersHasDeactivatedAtColumn()) {
+            $value = $user->deactivated_at ?? $user->updated_at;
+        } else {
+            $value = $user->updated_at;
+        }
+
+        return $value ? \Illuminate\Support\Carbon::parse($value) : null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $fields
+     * @return array<string, mixed>
+     */
+    protected function withDeactivatedAt(array $fields, mixed $value): array
+    {
+        if ($this->usersHasDeactivatedAtColumn()) {
+            $fields['deactivated_at'] = $value;
+        }
+
+        return $fields;
+    }
+
+    protected function usersHasDeactivatedAtColumn(): bool
+    {
+        static $hasColumn = null;
+
+        if ($hasColumn === null) {
+            $hasColumn = Schema::hasColumn('users', 'deactivated_at');
+        }
+
+        return $hasColumn;
     }
 
     /**
@@ -1004,13 +1042,12 @@ class AuthController extends Controller
         try {
             DB::beginTransaction();
 
-            $user->update([
+            $user->update($this->withDeactivatedAt([
                 'is_active' => 0,
-                'deactivated_at' => now(),
                 'fcm_token' => null,
                 'platform'  => null,
                 'token_updated_at' => null,
-            ]);
+            ], now()));
 
             $user->tokens()->delete();
 
@@ -1114,10 +1151,9 @@ class AuthController extends Controller
                 ], 403);
             }
 
-            $user->update([
+            $user->update($this->withDeactivatedAt([
                 'is_active' => 1,
-                'deactivated_at' => null,
-            ]);
+            ], null));
             $user->refresh();
 
             Log::info('forgot_password.account_restored_before_otp', [

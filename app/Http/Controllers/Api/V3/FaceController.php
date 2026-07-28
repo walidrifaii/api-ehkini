@@ -139,7 +139,8 @@ class FaceController extends AuthController
         }
 
         $probe = $result['embedding'];
-        $threshold = (float) config('face_recognition.similarity_threshold', 0.80);
+        // Face-ID-like tolerance for lighting / angle (0.70). Near-miss 0.88 must pass.
+        $threshold = (float) config('face_recognition.similarity_threshold', 0.70);
         $profiles = UserFaceEmbedding::query()
             ->with('user')
             ->whereHas('user', fn ($query) => $query->where('is_active', 1))
@@ -161,10 +162,11 @@ class FaceController extends AuthController
             }
         }
 
-        if (! $bestUser || $bestScore < $threshold) {
+        if (! $bestUser || $bestScore + 0.0001 < $threshold) {
             RateLimiter::hit($key, $decayMinutes * 60);
             Log::warning('face_login.not_matched', [
                 'confidence' => $bestScore,
+                'threshold' => $threshold,
                 'ip' => $request->ip(),
             ]);
 
@@ -173,6 +175,7 @@ class FaceController extends AuthController
                 'matched' => false,
                 'message' => 'Face not recognized.',
                 'confidence' => round($bestScore, 4),
+                'threshold' => $threshold,
             ], 401);
         }
 

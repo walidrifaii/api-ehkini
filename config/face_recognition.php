@@ -6,10 +6,10 @@ return [
 
     'api_key' => (string) env('FACE_AI_API_KEY', ''),
 
-    'similarity_threshold' => (float) env('FACE_SIMILARITY_THRESHOLD', 0.80),
+    'similarity_threshold' => (float) env('FACE_SIMILARITY_THRESHOLD', 0.70),
 
     // Block same face on another account — defaults to login threshold if not set.
-    'duplicate_threshold' => (float) env('FACE_DUPLICATE_THRESHOLD', env('FACE_SIMILARITY_THRESHOLD', 0.80)),
+    'duplicate_threshold' => (float) env('FACE_DUPLICATE_THRESHOLD', env('FACE_SIMILARITY_THRESHOLD', 0.70)),
 
     'login_rate_limit' => (int) env('FACE_LOGIN_RATE_LIMIT', 20),
 

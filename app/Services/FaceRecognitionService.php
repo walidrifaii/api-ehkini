@@ -108,7 +108,9 @@ class FaceRecognitionService
         });
 
         $best = $valid[0];
-        $best['embedding'] = $averaged;
+        if ($averaged !== []) {
+            $best['embedding'] = $averaged;
+        }
         $best['quality_score'] = collect($valid)
             ->avg(fn (array $item) => (float) ($item['quality_score'] ?? 0));
 

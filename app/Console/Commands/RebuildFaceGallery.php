@@ -9,7 +9,7 @@ class RebuildFaceGallery extends Command
 {
     protected $signature = 'faces:rebuild-gallery';
 
-    protected $description = 'Rebuild the Face AI FAISS/NumPy gallery from encrypted DB embeddings';
+    protected $description = 'Rebuild the Face AI FAISS gallery from DB embeddings';
 
     public function handle(FaceRecognitionService $faceService): int
     {

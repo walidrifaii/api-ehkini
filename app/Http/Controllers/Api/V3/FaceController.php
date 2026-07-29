@@ -145,12 +145,24 @@ class FaceController extends AuthController
         $bestUser = null;
         $bestScore = 0.0;
         $matchSource = 'none';
+        $faissBackend = null;
 
+        // Primary path: FAISS identify on face-ai-service.
         $identified = $faceService->identifyEmbedding($probe, $threshold);
         if (is_array($identified)) {
+            $faissBackend = $identified['backend'] ?? null;
+            $gallerySize = (int) ($identified['gallery_size'] ?? 0);
+
+            // Empty gallery after restart → rebuild from DB into FAISS.
+            if ($gallerySize === 0) {
+                $faceService->rebuildGalleryFromDatabase();
+                $identified = $faceService->identifyEmbedding($probe, $threshold) ?? $identified;
+                $faissBackend = $identified['backend'] ?? $faissBackend;
+                $gallerySize = (int) ($identified['gallery_size'] ?? 0);
+            }
+
             $faissScore = (float) ($identified['score'] ?? 0);
             $faissUserId = (int) ($identified['user_id'] ?? 0);
-            // Even if "matched" is false, keep the score candidate when user_id is present.
             if ($faissUserId > 0 && $faissScore > $bestScore) {
                 $candidate = User::query()
                     ->where('id', $faissUserId)
@@ -161,40 +173,20 @@ class FaceController extends AuthController
                 if ($candidate) {
                     $bestUser = $candidate;
                     $bestScore = $faissScore;
-                    $matchSource = 'faiss';
-                }
-            }
-
-            if ($bestUser === null && (int) ($identified['gallery_size'] ?? 0) === 0) {
-                $faceService->rebuildGalleryFromDatabase();
-                $identified = $faceService->identifyEmbedding($probe, $threshold);
-                if (is_array($identified)) {
-                    $faissScore = (float) ($identified['score'] ?? 0);
-                    $faissUserId = (int) ($identified['user_id'] ?? 0);
-                    if ($faissUserId > 0 && $faissScore > $bestScore) {
-                        $candidate = User::query()
-                            ->where('id', $faissUserId)
-                            ->where(function ($q) {
-                                $q->where('is_active', 1)->orWhere('is_active', true);
-                            })
-                            ->first();
-                        if ($candidate) {
-                            $bestUser = $candidate;
-                            $bestScore = $faissScore;
-                            $matchSource = 'faiss_rebuilt';
-                        }
-                    }
+                    $matchSource = ($faissBackend === 'faiss') ? 'faiss' : 'gallery';
                 }
             }
         }
 
-        // Always run PHP match and keep the stronger candidate.
-        $local = $faceService->findBestMatchLocal($probe);
-        $localScore = (float) ($local['score'] ?? 0);
-        if ($local['user'] && $localScore > $bestScore) {
-            $bestUser = $local['user'];
-            $bestScore = $localScore;
-            $matchSource = 'php';
+        // PHP fallback only if FAISS/gallery did not produce a usable candidate.
+        if (! $bestUser) {
+            $local = $faceService->findBestMatchLocal($probe);
+            $localScore = (float) ($local['score'] ?? 0);
+            if ($local['user'] && $localScore > $bestScore) {
+                $bestUser = $local['user'];
+                $bestScore = $localScore;
+                $matchSource = 'php';
+            }
         }
 
         if (! $bestUser || $bestScore + 0.0001 < $threshold) {
@@ -203,6 +195,7 @@ class FaceController extends AuthController
                 'score' => $bestScore,
                 'threshold' => $threshold,
                 'source' => $matchSource,
+                'backend' => $faissBackend,
                 'ip' => $request->ip(),
             ]);
 
@@ -214,6 +207,7 @@ class FaceController extends AuthController
                 'message' => "Face not recognized ({$pct}%). Look straight at the camera, or re-register Face ID.",
                 'score' => round($bestScore, 4),
                 'threshold' => $threshold,
+                'source' => $matchSource,
             ], 401);
         }
 
@@ -237,6 +231,7 @@ class FaceController extends AuthController
             'success' => true,
             'matched' => true,
             'score' => round($bestScore, 4),
+            'source' => $matchSource,
             'token' => $token,
             'user' => $bestUser,
         ]);

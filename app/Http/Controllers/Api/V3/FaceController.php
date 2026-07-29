@@ -138,7 +138,7 @@ class FaceController extends AuthController
         }
 
         $probe = $result['embedding'];
-        $threshold = (float) config('face_recognition.similarity_threshold', 0.70);
+        $threshold = (float) config('face_recognition.similarity_threshold', 0.55);
 
         $bestUser = null;
         $bestScore = 0.0;

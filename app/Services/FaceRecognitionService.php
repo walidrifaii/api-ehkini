@@ -268,10 +268,6 @@ class FaceRecognitionService
             return null;
         }
 
-        $averaged = $this->averageEmbeddings(
-            array_map(fn (array $item) => $item['embedding'], $valid)
-        );
-
         usort($valid, function (array $a, array $b) {
             $scoreA = (float) ($a['quality_score'] ?? 0);
             $scoreB = (float) ($b['quality_score'] ?? 0);
@@ -283,13 +279,52 @@ class FaceRecognitionService
         });
 
         $best = $valid[0];
-        if ($averaged !== []) {
-            $best['embedding'] = $averaged;
+        $averaged = $this->averageEmbeddings(
+            array_map(fn (array $item) => $item['embedding'], $valid)
+        );
+
+        // Prefer the sharpest frame, lightly blended with the pose average so
+        // frontal login still matches after multi-angle enroll.
+        if ($averaged !== [] && is_array($best['embedding'] ?? null)) {
+            $best['embedding'] = $this->blendEmbeddings($best['embedding'], $averaged, 0.75);
         }
+
         $best['quality_score'] = collect($valid)
             ->avg(fn (array $item) => (float) ($item['quality_score'] ?? 0));
 
         return $best;
+    }
+
+    /**
+     * @param  array<int, float|int|string>  $primary
+     * @param  array<int, float|int|string>  $secondary
+     * @return array<int, float>
+     */
+    public function blendEmbeddings(array $primary, array $secondary, float $primaryWeight = 0.75): array
+    {
+        $a = array_map('floatval', array_values($primary));
+        $b = array_map('floatval', array_values($secondary));
+        $dim = min(count($a), count($b));
+        if ($dim === 0) {
+            return $a !== [] ? $a : $b;
+        }
+
+        $w = max(0.0, min(1.0, $primaryWeight));
+        $out = [];
+        for ($i = 0; $i < $dim; $i++) {
+            $out[] = ($a[$i] * $w) + ($b[$i] * (1.0 - $w));
+        }
+
+        $norm = 0.0;
+        foreach ($out as $value) {
+            $norm += $value * $value;
+        }
+        $norm = sqrt($norm);
+        if ($norm <= 0.0) {
+            return $out;
+        }
+
+        return array_map(fn (float $value) => $value / $norm, $out);
     }
 
     /**

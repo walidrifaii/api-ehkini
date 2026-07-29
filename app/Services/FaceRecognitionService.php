@@ -21,6 +21,181 @@ class FaceRecognitionService
         return (string) ($response->json('challenge') ?? 'blink');
     }
 
+    public function registerEmbeddingsParallel(int $userId, array $images, ?string $challenge = null): array
+    {
+        if ($images === []) {
+            return [];
+        }
+
+        $apiKey = config('face_recognition.api_key');
+        $url = $this->url('/face/register');
+
+        $responses = Http::pool(function ($pool) use ($images, $userId, $challenge, $apiKey, $url) {
+            $requests = [];
+            foreach ($images as $index => $image) {
+                $pending = $pool->as((string) $index)
+                    ->timeout(120)
+                    ->acceptJson();
+
+                if ($apiKey) {
+                    $pending = $pending->withHeaders(['X-API-Key' => $apiKey]);
+                }
+
+                $pending = $pending->attach(
+                    'image',
+                    fopen($image->getRealPath(), 'r'),
+                    $image->getClientOriginalName() ?: ('face_'.$index.'.jpg')
+                );
+
+                $payload = ['user_id' => $userId];
+                if ($challenge) {
+                    $payload['challenge'] = $challenge;
+                }
+
+                $requests[] = $pending->post($url, $payload);
+            }
+
+            return $requests;
+        });
+
+        $results = [];
+        foreach ($images as $index => $image) {
+            $response = $responses[(string) $index] ?? null;
+            try {
+                if ($response === null) {
+                    $results[] = [
+                        'success' => false,
+                        'message' => 'Face AI service unavailable.',
+                        'issues' => [],
+                    ];
+                    continue;
+                }
+
+                if ($response instanceof \Throwable) {
+                    throw $response;
+                }
+
+                $results[] = $this->parseAiResponse($response->json(), $response->status());
+            } catch (\Throwable $e) {
+                Log::warning('face_register.parallel_image_failed', [
+                    'user_id' => $userId,
+                    'index' => $index,
+                    'error' => $e->getMessage(),
+                ]);
+                $results[] = [
+                    'success' => false,
+                    'message' => $e->getMessage() ?: 'No valid face detected',
+                    'issues' => [],
+                ];
+            }
+        }
+
+        return $results;
+    }
+
+    public function identifyEmbedding(array $probe, ?float $threshold = null): ?array
+    {
+        $payload = ['embedding' => array_values($probe)];
+        if ($threshold !== null) {
+            $payload['threshold'] = $threshold;
+        }
+
+        try {
+            $response = $this->client()->post($this->url('/face/identify'), $payload);
+            if (! $response->successful()) {
+                return null;
+            }
+
+            $json = $response->json();
+            if (! is_array($json)) {
+                return null;
+            }
+
+            return $json;
+        } catch (\Throwable $e) {
+            Log::warning('face_identify.failed', ['error' => $e->getMessage()]);
+
+            return null;
+        }
+    }
+
+    public function upsertGalleryEmbedding(int $userId, array $embedding): void
+    {
+        try {
+            $this->client()->post($this->url('/face/gallery/upsert'), [
+                'user_id' => $userId,
+                'embedding' => array_values($embedding),
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('face_gallery.upsert_failed', [
+                'user_id' => $userId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    public function rebuildGalleryFromDatabase(): int
+    {
+        $items = [];
+        $profiles = UserFaceEmbedding::query()->get(['user_id', 'embedding']);
+        foreach ($profiles as $profile) {
+            $vector = $profile->getEmbeddingVector();
+            if ($vector === []) {
+                continue;
+            }
+            $items[] = [
+                'user_id' => (int) $profile->user_id,
+                'embedding' => array_values($vector),
+            ];
+        }
+
+        try {
+            $response = $this->client()->post($this->url('/face/gallery/rebuild'), [
+                'items' => $items,
+            ]);
+            if (! $response->successful()) {
+                return 0;
+            }
+
+            return (int) ($response->json('size') ?? count($items));
+        } catch (\Throwable $e) {
+            Log::warning('face_gallery.rebuild_failed', ['error' => $e->getMessage()]);
+
+            return 0;
+        }
+    }
+
+    /**
+     * Brute-force PHP fallback when FAISS gallery is empty / unavailable.
+     *
+     * @return array{user: \App\Models\User|null, score: float}
+     */
+    public function findBestMatchLocal(array $probe): array
+    {
+        $profiles = UserFaceEmbedding::query()
+            ->with('user')
+            ->whereHas('user', fn ($query) => $query->where('is_active', 1))
+            ->get();
+
+        $bestUser = null;
+        $bestScore = 0.0;
+
+        foreach ($profiles as $profile) {
+            $storedEmbedding = $profile->getEmbeddingVector();
+            if ($storedEmbedding === []) {
+                continue;
+            }
+
+            $score = $this->cosineSimilarity($probe, $storedEmbedding);
+            if ($score > $bestScore) {
+                $bestScore = $score;
+                $bestUser = $profile->user;
+            }
+        }
+
+        return ['user' => $bestUser, 'score' => $bestScore];
+    }
+
     public function registerEmbedding(int $userId, UploadedFile $image, ?string $challenge = null, ?UploadedFile $priorImage = null): array
     {
         $request = $this->client()->attach(

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V3;
 
 use App\Http\Controllers\Api\V2\AuthController;
+use App\Models\User;
 use App\Models\UserFaceEmbedding;
 use App\Services\FaceRecognitionService;
 use Illuminate\Http\Request;
@@ -22,29 +23,9 @@ class FaceController extends AuthController
 
         $user = $request->user();
         $challenge = $data['challenge'] ?? null;
-        $priorImage = $request->file('prior_image');
-        $results = [];
+        $images = array_values($request->file('images', []) ?: []);
 
-        foreach ($request->file('images', []) as $image) {
-            try {
-                $results[] = $faceService->registerEmbedding(
-                    $user->id,
-                    $image,
-                    $challenge,
-                    $priorImage
-                );
-            } catch (\Throwable $e) {
-                Log::warning('face_register.image_failed', [
-                    'user_id' => $user->id,
-                    'error' => $e->getMessage(),
-                ]);
-                $results[] = [
-                    'success' => false,
-                    'message' => $e->getMessage() ?: 'No valid face detected',
-                    'issues' => [],
-                ];
-            }
-        }
+        $results = $faceService->registerEmbeddingsParallel($user->id, $images, $challenge);
 
         $best = $faceService->pickBestRegistrationResult($results);
         $successCount = collect($results)
@@ -55,6 +36,7 @@ class FaceController extends AuthController
             'user_id' => $user->id,
             'total' => count($results),
             'success' => $successCount,
+            'mode' => 'parallel',
         ]);
 
         if (! $best || empty($best['embedding'])) {
@@ -99,12 +81,17 @@ class FaceController extends AuthController
         $record->setEmbeddingVector($best['embedding']);
         $record->save();
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Face registered successfully.',
-                'quality_score' => $best['quality_score'] ?? null,
-                'frames_used' => $successCount,
-            ]);
+        $faceService->upsertGalleryEmbedding((int) $user->id, $best['embedding']);
+
+        $avgQuality = (float) ($best['quality_score'] ?? 0);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Face registered successfully.',
+            'quality_score' => $best['quality_score'] ?? null,
+            'frames_used' => $successCount,
+            'high_quality' => $avgQuality >= 0.55,
+        ]);
     }
 
     public function loginFace(Request $request, FaceRecognitionService $faceService)
@@ -151,34 +138,55 @@ class FaceController extends AuthController
         }
 
         $probe = $result['embedding'];
-        // Face-ID-like tolerance for lighting / angle (0.70). Near-miss 0.88 must pass.
         $threshold = (float) config('face_recognition.similarity_threshold', 0.70);
-        $profiles = UserFaceEmbedding::query()
-            ->with('user')
-            ->whereHas('user', fn ($query) => $query->where('is_active', 1))
-            ->get();
 
         $bestUser = null;
         $bestScore = 0.0;
+        $matchSource = 'php';
 
-        foreach ($profiles as $profile) {
-            $storedEmbedding = $profile->getEmbeddingVector();
-            if ($storedEmbedding === []) {
-                continue;
+        $identified = $faceService->identifyEmbedding($probe, $threshold);
+        if (is_array($identified) && ($identified['matched'] ?? false) && ! empty($identified['user_id'])) {
+            $candidate = User::query()
+                ->where('id', (int) $identified['user_id'])
+                ->where('is_active', 1)
+                ->first();
+            if ($candidate) {
+                $bestUser = $candidate;
+                $bestScore = (float) ($identified['score'] ?? 0);
+                $matchSource = 'faiss';
             }
+        }
 
-            $score = $faceService->cosineSimilarity($probe, $storedEmbedding);
-            if ($score > $bestScore) {
-                $bestScore = $score;
-                $bestUser = $profile->user;
+        // Rebuild gallery once if empty, then retry identify.
+        if (! $bestUser && (int) ($identified['gallery_size'] ?? 0) === 0) {
+            $faceService->rebuildGalleryFromDatabase();
+            $identified = $faceService->identifyEmbedding($probe, $threshold);
+            if (is_array($identified) && ($identified['matched'] ?? false) && ! empty($identified['user_id'])) {
+                $candidate = User::query()
+                    ->where('id', (int) $identified['user_id'])
+                    ->where('is_active', 1)
+                    ->first();
+                if ($candidate) {
+                    $bestUser = $candidate;
+                    $bestScore = (float) ($identified['score'] ?? 0);
+                    $matchSource = 'faiss_rebuilt';
+                }
             }
+        }
+
+        if (! $bestUser) {
+            $local = $faceService->findBestMatchLocal($probe);
+            $bestUser = $local['user'];
+            $bestScore = (float) $local['score'];
+            $matchSource = 'php';
         }
 
         if (! $bestUser || $bestScore + 0.0001 < $threshold) {
             RateLimiter::hit($key, $decayMinutes * 60);
             Log::warning('face_login.not_matched', [
-                'confidence' => $bestScore,
+                'score' => $bestScore,
                 'threshold' => $threshold,
+                'source' => $matchSource,
                 'ip' => $request->ip(),
             ]);
 
@@ -186,15 +194,13 @@ class FaceController extends AuthController
                 'success' => false,
                 'matched' => false,
                 'message' => 'Face not recognized.',
-                'confidence' => round($bestScore, 4),
+                'score' => round($bestScore, 4),
                 'threshold' => $threshold,
             ], 401);
         }
 
         RateLimiter::clear($key);
 
-        // Multiple devices can stay signed in concurrently — a new login no
-        // longer revokes other devices' tokens (matches phone/email login).
         $oldFcmToken = $bestUser->fcm_token;
 
         if (! empty($data['fcm_token'])) {
@@ -212,7 +218,7 @@ class FaceController extends AuthController
         return response()->json([
             'success' => true,
             'matched' => true,
-            'confidence' => round($bestScore, 4),
+            'score' => round($bestScore, 4),
             'token' => $token,
             'user' => $bestUser,
         ]);

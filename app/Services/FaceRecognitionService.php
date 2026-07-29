@@ -174,23 +174,36 @@ class FaceRecognitionService
     {
         $profiles = UserFaceEmbedding::query()
             ->with('user')
-            ->whereHas('user', fn ($query) => $query->where('is_active', 1))
+            ->whereHas('user', function ($query) {
+                $query->where('is_active', 1)->orWhere('is_active', true);
+            })
             ->get();
 
         $bestUser = null;
         $bestScore = 0.0;
+        $checked = 0;
+        $emptyEmbeddings = 0;
 
         foreach ($profiles as $profile) {
             $storedEmbedding = $profile->getEmbeddingVector();
             if ($storedEmbedding === []) {
+                $emptyEmbeddings++;
                 continue;
             }
+            $checked++;
 
             $score = $this->cosineSimilarity($probe, $storedEmbedding);
             if ($score > $bestScore) {
                 $bestScore = $score;
                 $bestUser = $profile->user;
             }
+        }
+
+        if ($checked === 0) {
+            Log::warning('face_login.no_usable_embeddings', [
+                'profiles' => $profiles->count(),
+                'empty_embeddings' => $emptyEmbeddings,
+            ]);
         }
 
         return ['user' => $bestUser, 'score' => $bestScore];

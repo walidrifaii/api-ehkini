@@ -138,46 +138,62 @@ class FaceController extends AuthController
         }
 
         $probe = $result['embedding'];
-        $threshold = (float) config('face_recognition.similarity_threshold', 0.55);
+        // Soft threshold — mobile selfie variance is high; 0.40 works for buffalo_l.
+        $configured = (float) config('face_recognition.similarity_threshold', 0.40);
+        $threshold = $configured > 0 ? $configured : 0.40;
 
         $bestUser = null;
         $bestScore = 0.0;
-        $matchSource = 'php';
+        $matchSource = 'none';
 
         $identified = $faceService->identifyEmbedding($probe, $threshold);
-        if (is_array($identified) && ($identified['matched'] ?? false) && ! empty($identified['user_id'])) {
-            $candidate = User::query()
-                ->where('id', (int) $identified['user_id'])
-                ->where('is_active', 1)
-                ->first();
-            if ($candidate) {
-                $bestUser = $candidate;
-                $bestScore = (float) ($identified['score'] ?? 0);
-                $matchSource = 'faiss';
-            }
-        }
-
-        // Rebuild gallery once if empty, then retry identify.
-        if (! $bestUser && (int) ($identified['gallery_size'] ?? 0) === 0) {
-            $faceService->rebuildGalleryFromDatabase();
-            $identified = $faceService->identifyEmbedding($probe, $threshold);
-            if (is_array($identified) && ($identified['matched'] ?? false) && ! empty($identified['user_id'])) {
+        if (is_array($identified)) {
+            $faissScore = (float) ($identified['score'] ?? 0);
+            $faissUserId = (int) ($identified['user_id'] ?? 0);
+            // Even if "matched" is false, keep the score candidate when user_id is present.
+            if ($faissUserId > 0 && $faissScore > $bestScore) {
                 $candidate = User::query()
-                    ->where('id', (int) $identified['user_id'])
-                    ->where('is_active', 1)
+                    ->where('id', $faissUserId)
+                    ->where(function ($q) {
+                        $q->where('is_active', 1)->orWhere('is_active', true);
+                    })
                     ->first();
                 if ($candidate) {
                     $bestUser = $candidate;
-                    $bestScore = (float) ($identified['score'] ?? 0);
-                    $matchSource = 'faiss_rebuilt';
+                    $bestScore = $faissScore;
+                    $matchSource = 'faiss';
+                }
+            }
+
+            if ($bestUser === null && (int) ($identified['gallery_size'] ?? 0) === 0) {
+                $faceService->rebuildGalleryFromDatabase();
+                $identified = $faceService->identifyEmbedding($probe, $threshold);
+                if (is_array($identified)) {
+                    $faissScore = (float) ($identified['score'] ?? 0);
+                    $faissUserId = (int) ($identified['user_id'] ?? 0);
+                    if ($faissUserId > 0 && $faissScore > $bestScore) {
+                        $candidate = User::query()
+                            ->where('id', $faissUserId)
+                            ->where(function ($q) {
+                                $q->where('is_active', 1)->orWhere('is_active', true);
+                            })
+                            ->first();
+                        if ($candidate) {
+                            $bestUser = $candidate;
+                            $bestScore = $faissScore;
+                            $matchSource = 'faiss_rebuilt';
+                        }
+                    }
                 }
             }
         }
 
-        if (! $bestUser) {
-            $local = $faceService->findBestMatchLocal($probe);
+        // Always run PHP match and keep the stronger candidate.
+        $local = $faceService->findBestMatchLocal($probe);
+        $localScore = (float) ($local['score'] ?? 0);
+        if ($local['user'] && $localScore > $bestScore) {
             $bestUser = $local['user'];
-            $bestScore = (float) $local['score'];
+            $bestScore = $localScore;
             $matchSource = 'php';
         }
 
@@ -190,10 +206,12 @@ class FaceController extends AuthController
                 'ip' => $request->ip(),
             ]);
 
+            $pct = (int) round($bestScore * 100);
+
             return response()->json([
                 'success' => false,
                 'matched' => false,
-                'message' => 'Face not recognized.',
+                'message' => "Face not recognized ({$pct}%). Look straight at the camera, or re-register Face ID.",
                 'score' => round($bestScore, 4),
                 'threshold' => $threshold,
             ], 401);

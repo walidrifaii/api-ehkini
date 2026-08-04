@@ -11,7 +11,7 @@
             "description": "Current host (same as this Swagger page — use for local testing)"
         },
         {
-            "url": "http://localhost",
+            "url": "http://127.0.0.1:8000",
             "description": "Production server (from APP_URL / L5_SWAGGER_CONST_HOST)"
         }
     ],
@@ -558,6 +558,45 @@
                         "sanctum": []
                     }
                 ]
+            }
+        },
+        "/api/v2/account/restore": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Restore soft-deleted account and log in",
+                "description": "Call after login returns code ACCOUNT_DELETED (within 30-day grace). Same body as login or login-email. Soft-deleted accounts are auto-purged after 30 days.",
+                "operationId": "2f5237ef7b2546193dd7fdf0fc1394aa",
+                "responses": {
+                    "200": {
+                        "description": "Account restored and logged in"
+                    },
+                    "401": {
+                        "description": "Invalid credentials"
+                    },
+                    "410": {
+                        "description": "Grace period expired; account purged"
+                    }
+                }
+            }
+        },
+        "/api/v2/account/permanently-delete": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Permanently delete a soft-deleted account (manual)",
+                "description": "Optional manual hard-delete. The app restore dialog no longer calls this; inactive accounts are purged automatically after 30 days.",
+                "operationId": "06988dc57205cb75781f6b3bf093a792",
+                "responses": {
+                    "200": {
+                        "description": "Account permanently deleted"
+                    },
+                    "401": {
+                        "description": "Invalid credentials"
+                    }
+                }
             }
         },
         "/api/v2/profile/update": {
@@ -1418,21 +1457,33 @@
                     "App"
                 ],
                 "summary": "Get translation strings",
+                "description": "Returns all strings from DB (`translation_keys` + `translation_values`) for the given language code. Add a language by inserting into `languages` (is_active=1) and translation rows — no code deploy required.",
                 "operationId": "27e62ce76773eb7b7c22f46fc227c671",
                 "parameters": [
                     {
                         "name": "lang",
                         "in": "path",
+                        "description": "Must match an active `languages.code` (e.g. en, ar, fr)",
                         "required": true,
                         "schema": {
                             "type": "string",
-                            "example": "en"
+                            "example": "fr"
                         }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Translation key-value map"
+                        "description": "Translation key-value map (mobile + api.* keys)"
+                    },
+                    "404": {
+                        "description": "Language not found or inactive",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MessageResponse"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -1558,6 +1609,66 @@
                 "responses": {
                     "200": {
                         "description": "Token and expiry"
+                    }
+                }
+            }
+        },
+        "/api/v2/support/contact": {
+            "post": {
+                "tags": [
+                    "App"
+                ],
+                "summary": "Contact support",
+                "description": "Sends the user's email and message to the admin support inbox.",
+                "operationId": "318a406244387d2cc2fed7fe936c21a3",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "email",
+                                    "message"
+                                ],
+                                "properties": {
+                                    "email": {
+                                        "type": "string",
+                                        "format": "email",
+                                        "example": "user@example.com"
+                                    },
+                                    "message": {
+                                        "type": "string",
+                                        "example": "I need help with my account."
+                                    },
+                                    "subject": {
+                                        "type": "string",
+                                        "example": "Account issue"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Message sent",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MessageResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error"
+                    },
+                    "500": {
+                        "description": "Email delivery failed"
+                    },
+                    "503": {
+                        "description": "Support email not configured"
                     }
                 }
             }
@@ -2308,6 +2419,75 @@
                     },
                     "401": {
                         "description": "Unauthenticated"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/users/nearby": {
+            "get": {
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Nearby users by straight-line distance (v2, auth)",
+                "operationId": "8783bcc43b4f542b9307c4dc4349fbef",
+                "parameters": [
+                    {
+                        "name": "gender",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "male",
+                                "female"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "radius_km",
+                        "in": "query",
+                        "schema": {
+                            "type": "number",
+                            "default": 50,
+                            "maximum": 200
+                        }
+                    },
+                    {
+                        "name": "latitude",
+                        "in": "query",
+                        "schema": {
+                            "type": "number",
+                            "format": "float"
+                        }
+                    },
+                    {
+                        "name": "longitude",
+                        "in": "query",
+                        "schema": {
+                            "type": "number",
+                            "format": "float"
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 20,
+                            "maximum": 100
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Paginated nearby users ordered by distance_km"
+                    },
+                    "422": {
+                        "description": "Location required"
                     }
                 },
                 "security": [

@@ -63,7 +63,7 @@ class WhatsAppNodeCampaignOtpService
 
     private function otpMessageTemplate(): string
     {
-        return 'Your verification code for Ehkini App is {code}. Valid for 5 minutes.';
+        return 'Your verification code for Ehkini App is {code}. Valid for 5 minutes. Do not share this code.';
     }
 
     private function otpMessage(string $code): string

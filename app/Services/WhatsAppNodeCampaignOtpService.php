@@ -286,7 +286,7 @@ class WhatsAppNodeCampaignOtpService
         $clientId = (string) config('otp.whatsapp_node.client_id');
         $phone = $this->formatPhoneForNode($phoneE164);
         $campaignName = 'otp_' . $purpose . '_' . str_replace('-', '', (string) Str::uuid());
-        $message = 'Your verification code is {code}. Valid for 5 minutes.';
+        $message = 'Your verification code for Ehkini App is {code}. Valid for 5 minutes.';
 
         try {
             $create = $this->nodeHttp()->post($this->nodeUrl() . '/api/campaigns', [

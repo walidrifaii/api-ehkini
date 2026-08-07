@@ -61,15 +61,20 @@ class WhatsAppNodeCampaignOtpService
         return str_starts_with($phoneE164, '+') ? $phoneE164 : '+' . $digits;
     }
 
+    private function otpMessageTemplate(): string
+    {
+        return 'Your verification code for Ehkini App is {code}. Valid for 5 minutes.';
+    }
+
     private function otpMessage(string $code): string
     {
-        return 'Your verification code for Ehkini App is ' . $code . '. Valid for 5 minutes.';
+        return str_replace('{code}', $code, $this->otpMessageTemplate());
     }
 
     /**
-     * Body for POST /api/otp/send — phone (digits only), code, clientId.
+     * Body for POST /api/otp/send — phone, code, clientId, message.
      *
-     * @return array{phone: string, code: string, clientId: string}
+     * @return array{phone: string, code: string, clientId: string, message: string}
      */
     private function otpRequestBody(string $phone, string $code): array
     {
@@ -77,6 +82,7 @@ class WhatsAppNodeCampaignOtpService
             'phone' => $phone,
             'code' => $code,
             'clientId' => (string) config('otp.whatsapp_node.client_id'),
+            'message' => $this->otpMessageTemplate(),
         ];
     }
 
@@ -87,7 +93,7 @@ class WhatsAppNodeCampaignOtpService
             throw new \RuntimeException('OTP_PEPPER missing');
         }
 
--        $code = $this->normalizeOtpCode($code);
+        $code = $this->normalizeOtpCode($code);
         $canonicalPhone = $this->canonicalPhoneE164($phoneE164);
 
         $payload = [
@@ -286,7 +292,7 @@ class WhatsAppNodeCampaignOtpService
         $clientId = (string) config('otp.whatsapp_node.client_id');
         $phone = $this->formatPhoneForNode($phoneE164);
         $campaignName = 'otp_' . $purpose . '_' . str_replace('-', '', (string) Str::uuid());
-        $message = 'Your verification code for Ehkini App is {code}. Valid for 5 minutes.';
+        $message = $this->otpMessageTemplate();
 
         try {
             $create = $this->nodeHttp()->post($this->nodeUrl() . '/api/campaigns', [

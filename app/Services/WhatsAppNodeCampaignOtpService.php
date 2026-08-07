@@ -63,7 +63,7 @@ class WhatsAppNodeCampaignOtpService
 
     private function otpMessage(string $code): string
     {
-        return 'Your verification code is ' . $code . '. Valid for 5 minutes.';
+        return 'Your verification code for Ehkini App is ' . $code . '. Valid for 5 minutes.';
     }
 
     /**

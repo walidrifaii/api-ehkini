@@ -111,7 +111,7 @@ Fill from `.env.example`. Secrets must exist on Easypanel (or local `.env`), not
 |-------|----------------|
 | **App** | `APP_KEY`, `APP_URL`, `FORCE_HTTPS`, `APP_DEBUG` |
 | **DB** | MySQL `DB_*` |
-| **Media** | `MEDIA_DISK` (default `remote`), `UPLOAD_*`, optional ImageKit / legacy CDN |
+| **Media** | `MEDIA_DISK` (default `remote`), `UPLOAD_*`, optional ImageKit / legacy CDN — see [`handoff-image-upload.md`](./handoff-image-upload.md) |
 | **Mail / support** | SMTP + `SUPPORT_ADMIN_EMAIL` |
 | **FCM** | `FCM_PROJECT_ID` (e.g. `taaruf-f15c3`), credentials via JSON / base64 / file — then `php artisan fcm:check` |
 | **OTP** | Channel routing + WhatsApp node + Message Central + **Lebanon UnoSMS** (`OTP_UNOSMS_*`, country `961`) |
@@ -126,6 +126,8 @@ WhatsApp channel → WhatsApp node (WHATSAPP_NODE_*)
 SMS + country 961 → UnoSMS
 SMS + other countries → Message Central
 ```
+
+**WhatsApp Node OTP (step-by-step for reuse in other projects):** see [`handoff-whatsapp-node-otp.md`](./handoff-whatsapp-node-otp.md).
 
 Pepper: `OTP_PEPPER` or fallback **`APP_KEY`** (important for Lebanon verify consistency across deploys).
 

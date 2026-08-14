@@ -9,7 +9,7 @@ return [
     'the_given_data_was_invalid' => 'The given data was invalid.',
 
     'language_updated' => 'Language updated successfully.',
-
+//  testing push 
     'register_failed' => 'Register failed.',
     'account_created_successfully' => 'Account created successfully.',
     'phone_number_not_registered' => 'Phone number not registered.',

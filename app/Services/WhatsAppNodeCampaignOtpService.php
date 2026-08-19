@@ -72,9 +72,9 @@ class WhatsAppNodeCampaignOtpService
     }
 
     /**
-     * Body for POST /api/otp/send — phone, code, clientId, message (code already filled in).
+     * Body for POST /api/otp/send — phone, code, clientId, source, message (code already filled in).
      *
-     * @return array{phone: string, code: string, clientId: string, message: string}
+     * @return array{phone: string, code: string, clientId: string, source: string, message: string}
      */
     private function otpRequestBody(string $phone, string $code): array
     {
@@ -82,6 +82,7 @@ class WhatsAppNodeCampaignOtpService
             'phone' => $phone,
             'code' => $code,
             'clientId' => (string) config('otp.whatsapp_node.client_id'),
+            'source' => (string) config('otp.whatsapp_node.source'),
             'message' => $this->otpMessage($code),
         ];
     }
@@ -299,6 +300,7 @@ class WhatsAppNodeCampaignOtpService
                 'name' => $campaignName,
                 'message' => $message,
                 'clientId' => $clientId,
+                'source' => (string) config('otp.whatsapp_node.source'),
             ]);
 
             if ($this->isNodeFailure($create)) {

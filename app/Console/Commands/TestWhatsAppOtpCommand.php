@@ -29,6 +29,7 @@ class TestWhatsAppOtpCommand extends Command
 
         $this->line('WhatsApp node OTP test');
         $this->line('  url: ' . ($cfg['url'] ?? ''));
+        $this->line('  source: ' . ($cfg['source'] ?? ''));
         $this->line('  phone_e164: ' . $phoneE164);
         $this->line('  phone_for_node: ' . $whatsApp->formatPhoneForNode($phoneE164));
         $this->line('  code: ' . $code);

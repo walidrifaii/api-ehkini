@@ -21,6 +21,7 @@ return [
         'url' => rtrim((string) env('WHATSAPP_NODE_URL', ''), '/'),
         'token' => (string) env('WHATSAPP_NODE_TOKEN', ''),
         'client_id' => (string) env('WHATSAPP_NODE_CLIENT_ID', ''),
+        'source' => (string) env('WHATSAPP_NODE_SOURCE', 'taaruf'),
         'delivery' => env('WHATSAPP_NODE_DELIVERY', 'otp'), // otp | campaign | send-campaign
         'timeout' => (int) env('WHATSAPP_NODE_TIMEOUT', 35),
         'connect_timeout' => (int) env('WHATSAPP_NODE_CONNECT_TIMEOUT', 5),

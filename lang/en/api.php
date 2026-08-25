@@ -2,7 +2,7 @@
 
 /**
  * API response messages (English). Keys are stable; use api_trans('key') or English text + middleware.
- * Add lang/{locale}/api.php and APP_LOCALES to support more languages. test push test */ 
+ * Add lang/{locale}/api.php and APP_LOCALES to support more languages. test push test  test*/ 
 
 return [
     'unauthenticated' => 'Unauthenticated.',
